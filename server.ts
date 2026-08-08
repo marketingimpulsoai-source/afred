@@ -13,7 +13,7 @@ import { getMessagesBySession, getRecentTelemetry } from './src/alfred_core/memo
 import { SUB_AGENTS, AGENT_TOOLS, SAFETY_POLICIES } from './src/data/alfredData';
 import { BUSINESS_AGENTS, CLIENT_SEGMENTS, PAGE_VIDEO_FACTORY, findBusinessMatches } from './src/data/businessAgents';
 import { ALFRED_MEMORY_PREFERENCES } from './src/data/alfredMemoryPreferences';
-import { synthesizeSpeech } from './src/utils/ttsEngine';
+import { synthesizeSpeech, getTtsStatus, listElevenLabsVoices } from './src/utils/ttsEngine';
 import { getRevenueCatMcpStatus, buildHermesRevenueCatMcpConfigTemplate } from './src/integrations/revenueCatMcp';
 import { getMediaRouterStatus, routeMediaRequest } from './src/data/mediaRouter';
 import { getAlfredV3ApiStatus } from './src/integrations/alfredV3Apis';
@@ -157,6 +157,20 @@ app.post('/api/chat', async (req, res) => {
   } catch (err: any) {
     console.error('[ALFRED] Chat processing error:', err);
     res.status(500).json({ error: 'Alfred core processing failure', detail: String(err?.message || err) });
+  }
+});
+
+// ── Voz — estado y catálogo seguro ─────────────────────────────────────
+app.get('/api/voice/status', (_req, res) => {
+  res.json({ voice: getTtsStatus() });
+});
+
+app.get('/api/voice/voices', async (_req, res) => {
+  try {
+    res.json({ voice: await listElevenLabsVoices() });
+  } catch (err) {
+    console.warn('[ALFRED Voice] Voice catalog unavailable:', err);
+    res.status(502).json({ voice: { configured: true, voices: [], error: 'ElevenLabs voice catalog unavailable' } });
   }
 });
 

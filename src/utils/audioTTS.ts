@@ -15,6 +15,7 @@ export const playAudioTTS = async (
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, language }),
     });
+    if (!res.ok) throw new Error(`TTS endpoint returned ${res.status}`);
     const data = await res.json();
 
     if (data.useWebSpeechFallback || !data.audioBase64) {

@@ -41,11 +41,42 @@ function Invoke-AlfredCommand([string]$Text) {
     $answer = [string]$response.text
     if ([string]::IsNullOrWhiteSpace($answer)) { $answer = "Jefe Maestro, recibí la orden pero no hubo respuesta del núcleo." }
     Write-AlfredLog "Respuesta: $($answer.Substring(0, [Math]::Min(180, $answer.Length)))"
-    if (-not $NoSpeak) { Speak-Alfred $answer }
+    if (-not $NoSpeak) {
+      if (-not (Speak-AlfredCloud $answer)) { Speak-Alfred $answer }
+    }
   } catch {
     $msg = "Jefe Maestro, no pude comunicarme con el núcleo local de Alfred. Verifique que el servidor esté activo."
     Write-AlfredLog "ERROR enviando orden: $($_.Exception.Message)"
     if (-not $NoSpeak) { Speak-Alfred $msg }
+  }
+}
+
+function Speak-AlfredCloud([string]$Text) {
+  $tempPath = $null
+  try {
+    $payload = @{ text = $Text; language = "es" } | ConvertTo-Json -Depth 4
+    $tts = Invoke-RestMethod -Uri "$BaseUrl/api/tts" -Method Post -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes($payload)) -TimeoutSec 60
+    if ($tts.provider -ne "elevenlabs" -or [string]::IsNullOrWhiteSpace([string]$tts.audioBase64)) {
+      Write-AlfredLog "TTS cloud no disponible: $($tts.provider). Se usará fallback local."
+      return $false
+    }
+
+    $tempPath = [IO.Path]::Combine([IO.Path]::GetTempPath(), "alfred-tts-$([Guid]::NewGuid().ToString('N')).mp3")
+    [IO.File]::WriteAllBytes($tempPath, [Convert]::FromBase64String([string]$tts.audioBase64))
+    $wmp = New-Object -ComObject WMPlayer.OCX
+    $media = $wmp.newMedia($tempPath)
+    $wmp.currentMedia = $media
+    $wmp.controls.play()
+    $deadline = (Get-Date).AddSeconds(90)
+    while ((Get-Date) -lt $deadline -and $wmp.playState -notin @(1, 10)) { Start-Sleep -Milliseconds 150 }
+    $wmp.controls.stop()
+    $wmp.close()
+    Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+    return $true
+  } catch {
+    Write-AlfredLog "ElevenLabs playback unavailable; local fallback: $($_.Exception.Message)"
+    if ($tempPath) { Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue }
+    return $false
   }
 }
 
@@ -134,6 +165,12 @@ Register-ObjectEvent -InputObject $engine -EventName SpeechRecognized -Action {
   if ([string]::IsNullOrWhiteSpace($text)) { return }
   if ($confidence -lt 0.48) {
     Write-Host "[$($now.ToString('yyyy-MM-dd HH:mm:ss'))] [ALFRED VOICE BRIDGE] Baja confianza: $text ($([Math]::Round($confidence, 2)))"
+    return
+  }
+  $normalized = $text.ToLowerInvariant().Normalize([Text.NormalizationForm]::FormD) -replace '\p{Mn}', ''
+  $hasWake = $normalized -match '\b(alfred|jefe maestro|buenos dias|buen dia|buenas tardes|buenas noches|que mundo|llego papi)\b'
+  if (-not $hasWake) {
+    Write-Host "[$($now.ToString('yyyy-MM-dd HH:mm:ss'))] [ALFRED VOICE BRIDGE] Ignorada sin palabra de activación: $text"
     return
   }
   if ($text -eq $script:lastText -and ($now - $script:lastAt).TotalSeconds -lt 4) { return }

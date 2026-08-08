@@ -4,7 +4,7 @@
 // Config principal recibida del agente ElevenLabs:
 //   agent_id: agent_0001kzhcg3anecc9xmf62eceh6m9
 //   voice_id: 89gcX1AeMGgcsN8ypHLu
-//   model_id: eleven_v3_conversational
+//   model_id: eleven_multilingual_v2
 // ═══════════════════════════════════════════════════════════════════════
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import { Language } from '../types';
@@ -21,7 +21,7 @@ interface TTSResult {
 
 const ELEVENLABS_AGENT_ID = process.env.ALFRED_ELEVENLABS_AGENT_ID || 'agent_0001kzhcg3anecc9xmf62eceh6m9';
 const ELEVENLABS_VOICE_ID = process.env.ALFRED_TTS_VOICE_ID || '89gcX1AeMGgcsN8ypHLu';
-const ELEVENLABS_MODEL = process.env.ALFRED_TTS_MODEL_ID || 'eleven_v3_conversational';
+const ELEVENLABS_MODEL = process.env.ALFRED_TTS_MODEL_ID || 'eleven_multilingual_v2';
 const ELEVENLABS_OUTPUT_FORMAT = process.env.ALFRED_TTS_OUTPUT_FORMAT || 'mp3_44100_128';
 
 async function streamToBase64(stream: ReadableStream<Uint8Array>): Promise<string> {
@@ -35,22 +35,24 @@ async function tryElevenLabs(text: string, language: Language): Promise<TTSResul
 
   try {
     const client = new ElevenLabsClient({ apiKey });
-    const audioStream = await client.textToSpeech.convert(ELEVENLABS_VOICE_ID, {
+    const requestOptions: Record<string, unknown> = {
       text: text.slice(0, 2500),
       modelId: ELEVENLABS_MODEL,
       outputFormat: ELEVENLABS_OUTPUT_FORMAT as any,
-      optimizeStreamingLatency: 3,
+      optimizeStreamingLatency: 2,
       voiceSettings: {
         stability: Number(process.env.ALFRED_TTS_STABILITY || 0.5),
         similarityBoost: Number(process.env.ALFRED_TTS_SIMILARITY_BOOST || 0.8),
         speed: Number(process.env.ALFRED_TTS_SPEED || 1),
-        style: Number(process.env.ALFRED_TTS_STYLE || 0.35),
+        style: Number(process.env.ALFRED_TTS_STYLE || 0.25),
         useSpeakerBoost: true,
       },
-      // En v3 conversational dejamos que el modelo detecte el idioma cuando conviene.
-      // Para modelos que lo soportan, esta pista ayuda a mantener ES/EN correcto.
-      languageCode: language === 'es' ? 'es' : 'en',
-    });
+    };
+    if (ELEVENLABS_MODEL !== 'eleven_multilingual_v2') {
+      requestOptions.languageCode = language === 'es' ? 'es' : 'en';
+    }
+
+    const audioStream = await client.textToSpeech.convert(ELEVENLABS_VOICE_ID, requestOptions as any);
 
     return {
       audioBase64: await streamToBase64(audioStream),
@@ -93,6 +95,40 @@ async function tryGeminiTTS(text: string): Promise<TTSResult | null> {
     console.warn('[TTS] Falla de Gemini TTS:', err);
     return null;
   }
+}
+
+export function getTtsStatus() {
+  return {
+    provider: process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : process.env.GEMINI_API_KEY ? 'gemini' : 'web_speech',
+    elevenLabsConfigured: Boolean(process.env.ELEVENLABS_API_KEY),
+    elevenLabsAgentId: ELEVENLABS_AGENT_ID,
+    elevenLabsVoiceId: ELEVENLABS_VOICE_ID,
+    elevenLabsVoiceName: process.env.ALFRED_TTS_VOICE_NAME || 'Rupert / Alfred',
+    elevenLabsModelId: ELEVENLABS_MODEL,
+    browserFallback: !process.env.ELEVENLABS_API_KEY && !process.env.GEMINI_API_KEY,
+    reason: process.env.ELEVENLABS_API_KEY ? 'ElevenLabs configured' : 'ELEVENLABS_API_KEY is not configured in the server environment',
+  };
+}
+
+export async function listElevenLabsVoices() {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) return { configured: false, voices: [], reason: 'ELEVENLABS_API_KEY is not configured in the server environment' };
+
+  const response = await fetch('https://api.elevenlabs.io/v2/voices', {
+    headers: { 'xi-api-key': apiKey, Accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error(`ElevenLabs voices request failed with ${response.status}`);
+  const data = await response.json() as { voices?: Array<Record<string, unknown>> };
+  return {
+    configured: true,
+    voices: (data.voices || []).map((voice) => ({
+      voiceId: voice.voice_id,
+      name: voice.name,
+      category: voice.category,
+      labels: voice.labels,
+      previewUrl: voice.preview_url,
+    })),
+  };
 }
 
 export async function synthesizeSpeech(text: string, language: Language): Promise<TTSResult> {

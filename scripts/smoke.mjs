@@ -76,6 +76,11 @@ async function main() {
     throw new Error(`Expected ClientStudio/CreativeForge business routing, got ${matchedIds.join(',')}`);
   }
 
+  const voiceStatus = await getJson('/api/voice/status');
+  if (!voiceStatus.voice?.elevenLabsVoiceId) throw new Error('ALFRED ElevenLabs voice ID missing');
+  if (voiceStatus.voice?.elevenLabsVoiceName !== 'Rupert / Alfred') throw new Error('ALFRED ElevenLabs voice name missing');
+  if (typeof voiceStatus.voice?.elevenLabsConfigured !== 'boolean') throw new Error('ALFRED ElevenLabs status missing');
+
   const tts = await postJson('/api/tts', {
     text: 'Buenas, soy Alfred, su mayordomo digital.',
     language: 'es',

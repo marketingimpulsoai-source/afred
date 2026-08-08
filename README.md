@@ -16,7 +16,7 @@ Implementación funcional en React + Vite + Express + TypeScript, ahora alineada
 - Router semántico con LLM si hay clave configurada y fallback determinista por keywords.
 - Memoria persistente real con SQLite.
 - Telemetría persistente.
-- TTS masculino bilingüe: ElevenLabs Rupert/Alfred (`89gcX1AeMGgcsN8ypHLu`, `eleven_v3_conversational`) → Gemini TTS → Web Speech API masculino local. Preview en `public/audio/alfred-rupert-preview.mp3`.
+- TTS masculino bilingüe: ElevenLabs Rupert/Alfred (`89gcX1AeMGgcsN8ypHLu`, `eleven_multilingual_v2`) → Gemini TTS → Web Speech API local. Preview en `public/audio/alfred-rupert-preview.mp3`.
 - **Panel ALFRED CORP V3.5**: Stitch Cyberpunk Nexus Fusion con los 10 ZIPs de Stitch importados, referencia visual `https://alfred-ai-butle.ai.studio/`, glass/chamfer panels, scanline, data-grid, shader backplane, flicker, waveform, Three.js orbital motif y matriz `STITCH FUSION MATRIX`.
 - Personalidad estricta: siempre trata al usuario como **Jefe Maestro**; saludo por horario (`Buenos días/tardes/noches, jefe maestro`) y protocolo de tareas `Entendido, Jefe Maestro` al iniciar/finalizar.
 - Secciones nuevas: Login Biométrico Fortress, Ajustes, HUD Móvil, Memoria Minerva, Arquitectura Operativa, Red Neuronal y **Negocios + Clientes**.
@@ -83,7 +83,7 @@ Para voz cloud de alta calidad:
 ELEVENLABS_API_KEY=...
 ALFRED_ELEVENLABS_AGENT_ID=agent_0001kzhcg3anecc9xmf62eceh6m9
 ALFRED_TTS_VOICE_ID=89gcX1AeMGgcsN8ypHLu
-ALFRED_TTS_MODEL_ID=eleven_v3_conversational
+ALFRED_TTS_MODEL_ID=eleven_multilingual_v2
 ```
 
 El preview de Rupert queda en `public/audio/alfred-rupert-preview.mp3`. Detalles completos: `docs/VOICE_ALFRED_RUPERT.md`.
