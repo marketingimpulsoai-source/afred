@@ -1,0 +1,48 @@
+providers:
+  seedance_2_5:
+    enabled: true
+    model: seedance-2.5
+    env:
+      api_key: SEEDANCE_API_KEY
+      base_url: SEEDANCE_BASE_URL
+    priority: 1
+    quality: cinematic
+  minimax:
+    enabled: true
+    env:
+      subscription_key: MINIMAX_SUBSCRIPTION_KEY
+      api_key: MINIMAX_API_KEY
+      group_id: MINIMAX_GROUP_ID
+      base_url: MINIMAX_BASE_URL
+    priority: 2
+    quality: premium
+  pixverse:
+    enabled: false
+    env:
+      api_key: PIXVERSE_API_KEY
+    priority: 3
+  luma:
+    enabled: false
+    env:
+      api_key: LUMA_API_KEY
+    priority: 4
+  fal_ai:
+    enabled: true
+    env:
+      api_key: FAL_KEY
+    priority: 5
+  runware:
+    enabled: false
+    env:
+      api_key: RUNWARE_API_KEY
+    priority: 6
+  comfyui:
+    enabled: false
+    env:
+      base_url: COMFYUI_BASE_URL
+    priority: 7
+
+routing:
+  default_strategy: quality_first_then_cost
+  require_confirmation_for_paid_generations: true
+  never_log_secrets: true
