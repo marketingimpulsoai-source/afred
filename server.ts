@@ -61,7 +61,7 @@ app.get('/api/memory-preferences', (req, res) => {
 app.get('/api/alfred-v3/status', (req, res) => {
   res.json({
     version: 'ALFRED CORP V3.5',
-    designSystem: 'Stitch Cyberpunk Nexus · Aether-Chassis Fusion',
+    designSystem: 'ALFRED Mayordomo Digital Nexus · Aether Core Interface',
     stitchFusion: {
       importedZipPacks: 10,
       referenceUrl: 'https://alfred-ai-butle.ai.studio/',

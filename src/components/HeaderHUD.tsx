@@ -76,8 +76,8 @@ export const HeaderHUD: React.FC<Props> = ({
               </div>
               <p className="v3-brand-subtitle">
                 {language === 'es'
-                  ? 'Mayordomo IA manos libres · MiniMax · Gemini Nano Banana · Stitch MCP · Seedance'
-                  : 'Hands-free AI butler · MiniMax · Gemini Nano Banana · Stitch MCP · Seedance'}
+                  ? 'Mayordomo digital de voz · memoria · rutinas · subagentes · seguridad · briefing operativo'
+                  : 'Voice digital butler · memory · routines · sub-agents · security · operational briefing'}
               </p>
             </div>
           </div>

@@ -19,7 +19,6 @@ interface Props {
 }
 
 type PermissionStateLabel = 'unknown' | 'granted' | 'prompt' | 'denied' | 'unsupported';
-type ApiPipelineStatus = { id: string; label: string; purpose: string; configured: boolean; statusLabel: string };
 type OperationalBriefing = {
   generatedAt: string;
   mission: string;
@@ -47,35 +46,53 @@ type OperationalBriefing = {
 };
 
 const QUICK_ES = [
-  'Alfred, activa modo manos libres',
-  'Crea un video MiniMax para una campaña SaaS',
-  'Diseña con Gemini Nano Banana un dashboard futurista',
-  'Abre Media AI y prepara Seedance 2.5',
-  'Verifica permisos del micrófono en el browser',
-  'Orquesta agentes para entregar una campaña completa',
+  'Alfred, estatus general del sistema',
+  'Alfred, activa mi rutina diaria',
+  'Alfred, resume mis prioridades de hoy',
+  'Alfred, revisa la memoria operativa',
+  'Alfred, verifica permisos del micrófono',
+  'Alfred, orquesta los subagentes para una tarea completa',
 ];
 const QUICK_EN = [
-  'Alfred, activate hands-free mode',
-  'Create a MiniMax video for a SaaS campaign',
-  'Design a futuristic dashboard with Gemini Nano Banana',
-  'Open Media AI and prepare Seedance 2.5',
-  'Check browser microphone permissions',
-  'Orchestrate agents to deliver a full campaign',
+  'Alfred, system status report',
+  'Alfred, activate my daily routine',
+  'Alfred, summarize today\'s priorities',
+  'Alfred, review operational memory',
+  'Alfred, check microphone permissions',
+  'Alfred, orchestrate the sub-agents for a full task',
 ];
 
 const WAKE_WORDS = ['alfred', 'hey alfred', 'oye alfred', 'que mundo', 'qué mundo', 'llego papi', 'jefe maestro'];
+const AUTO_HANDS_FREE_KEY = 'alfred_auto_hands_free_enabled';
+
+function normalizeVoiceText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9ñ\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isAlfredGreetingCommand(text: string): boolean {
+  const normalized = normalizeVoiceText(text);
+  const hasAlfred = /\b(alfred|jefe maestro)\b/.test(normalized);
+  const hasGreeting = /\b(buenos dias|buen dia|buenas tardes|buenas noches)\b/.test(normalized);
+  return hasAlfred && hasGreeting;
+}
 
 const STITCH_FUSION_PACKS = [
-  { id: '00', name: 'Aether-Chassis HUD', source: 'base zip', effect: 'glass panel · chamfer · scanline' },
-  { id: '01', name: 'Command Center Prime', source: '(1)', effect: 'data grid · JetBrains Mono · Playfair' },
-  { id: '02', name: 'Reactive Nexus Core', source: '(2)', effect: 'cyan pulse · voice spectrum' },
-  { id: '03', name: 'Agent Operations Rail', source: '(3)', effect: 'modular cards · telemetry lanes' },
-  { id: '04', name: 'Fortress Tactical Core', source: '(4)', effect: 'flicker · security amber' },
-  { id: '05', name: 'Creative Forge Deck', source: '(5)', effect: 'violet glow · media staging' },
-  { id: '06', name: '12-Agent HUD Library', source: '(6)', effect: 'Thomas · Ada · Leonardo · Fortress · Minerva' },
-  { id: '07', name: 'Shader Backplane', source: '(7)', effect: 'WebGL-inspired depth layer' },
-  { id: '08', name: 'Minerva Memory Core', source: '(8)', effect: 'memory lattice · three.js orbital motif' },
-  { id: '09', name: 'Quantum Link Mesh', source: '(9)', effect: 'shader mesh · particle halo' },
+  { id: '00', name: 'Alfred Core', source: 'núcleo', effect: 'estado operativo · respuesta central · control general' },
+  { id: '01', name: 'Alfred Voice', source: 'voz', effect: 'escucha · habla · confirmación al Jefe Maestro' },
+  { id: '02', name: 'Alfred Memory', source: 'memoria', effect: 'preferencias · rutinas · continuidad' },
+  { id: '03', name: 'Alfred Routines', source: 'rutinas', effect: 'mañana · tarde · noche · madrugada' },
+  { id: '04', name: 'Alfred Security', source: 'seguridad', effect: 'permisos · auditoría · confirmación humana' },
+  { id: '05', name: 'Alfred Briefing', source: 'informe', effect: 'sistema · prioridades · estado operativo' },
+  { id: '06', name: 'Alfred Sub-agents', source: '12 online', effect: 'Thomas · Ada · Minerva · Fortress · equipo completo' },
+  { id: '07', name: 'Alfred Reasoning', source: 'razón', effect: 'routing · confianza · explicación visible' },
+  { id: '08', name: 'Alfred Command', source: 'control', effect: 'texto · micrófono · botones accesibles' },
+  { id: '09', name: 'Alfred Presence', source: 'mayordomo', effect: 'servicio formal · Jefe Maestro · atención continua' },
 ];
 
 export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, onSendMessage, subAgents, securityLevel, audioMuted }) => {
@@ -86,22 +103,17 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
   const [liveTranscript, setLiveTranscript] = useState('');
   const [lastVoiceCommand, setLastVoiceCommand] = useState('');
   const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({});
-  const [apiPipelines, setApiPipelines] = useState<ApiPipelineStatus[]>([]);
   const [briefing, setBriefing] = useState<OperationalBriefing | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const handsFreeRef = useRef(false);
+  const autoStartAttemptedRef = useRef(false);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
   useEffect(() => {
-    fetch('/api/alfred-v3/status')
-      .then(res => res.json())
-      .then(data => setApiPipelines(data.apiPipelines || []))
-      .catch(() => setApiPipelines([]));
-
     fetch('/api/briefing')
       .then(res => res.json())
       .then(data => setBriefing(data.briefing || null))
@@ -143,6 +155,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(track => track.stop());
+      localStorage.setItem(AUTO_HANDS_FREE_KEY, 'true');
       setPermissionState('granted');
       return true;
     } catch {
@@ -179,11 +192,12 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
   const startRecognition = useCallback(async (continuous = false) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert(language === 'es' ? 'Reconocimiento de voz no soportado en este navegador.' : 'Speech recognition is not supported in this browser.');
-      return;
+      setPermissionState('unsupported');
+      setLiveTranscript(language === 'es' ? 'Reconocimiento de voz no soportado en este navegador.' : 'Speech recognition is not supported in this browser.');
+      return false;
     }
     const ok = permissionState === 'granted' || await requestMicAccess();
-    if (!ok) return;
+    if (!ok) return false;
 
     recognitionRef.current?.stop?.();
     const recognition = new SpeechRecognition();
@@ -202,20 +216,27 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       setLiveTranscript(interim || finalText);
       if (finalText.trim()) {
         const lower = finalText.toLowerCase();
+        const isGreetingCommand = isAlfredGreetingCommand(finalText);
         const withoutWake = WAKE_WORDS.reduce((text, wake) => text.replace(wake, ''), lower).trim();
         const isWakeCommand = WAKE_WORDS.some(w => lower.includes(w));
-        if (runVoiceShortcut(withoutWake || finalText)) return;
-        if (continuous && !isWakeCommand) return;
-        const spoken = isWakeCommand ? withoutWake : finalText;
+        if (!isGreetingCommand && runVoiceShortcut(withoutWake || finalText)) return;
+        if (continuous && !isWakeCommand && !isGreetingCommand) return;
+        const spoken = isGreetingCommand ? finalText.trim() : (isWakeCommand ? withoutWake : finalText.trim());
         if (spoken) {
           setInput(spoken);
           handleSend(spoken);
         }
       }
     };
-    recognition.onerror = () => {
+    recognition.onerror = (event: any) => {
+      const error = event?.error || 'unknown';
+      setLiveTranscript(language === 'es' ? `Micrófono: ${error}` : `Microphone: ${error}`);
       setIsListening(false);
-      if (!continuous) setHandsFree(false);
+      if (!continuous || ['not-allowed', 'service-not-allowed', 'audio-capture'].includes(error)) {
+        handsFreeRef.current = false;
+        if (error === 'not-allowed' || error === 'service-not-allowed') setPermissionState('denied');
+        if (!continuous) setHandsFree(false);
+      }
     };
     recognition.onend = () => {
       setIsListening(false);
@@ -224,9 +245,31 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       }
     };
     recognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
+    try {
+      recognition.start();
+      setIsListening(true);
+      setLiveTranscript(language === 'es' ? 'Alfred escuchando. Diga “Buenos días Alfred”, “Buenas tardes Alfred” o “Buenas noches Alfred”.' : 'Alfred is listening. Say “Good morning Alfred”, “Good afternoon Alfred”, or “Good evening Alfred”.');
+      return true;
+    } catch (error) {
+      console.warn('[Alfred Voice] recognition.start failed', error);
+      setIsListening(false);
+      return false;
+    }
   }, [language, permissionState, handleSend, runVoiceShortcut]);
+
+  useEffect(() => {
+    if (permissionState !== 'granted' || handsFree || autoStartAttemptedRef.current) return;
+    if (localStorage.getItem(AUTO_HANDS_FREE_KEY) === 'false') return;
+    autoStartAttemptedRef.current = true;
+    handsFreeRef.current = true;
+    setHandsFree(true);
+    startRecognition(true).then((started) => {
+      if (!started) {
+        handsFreeRef.current = false;
+        setHandsFree(false);
+      }
+    });
+  }, [permissionState, handsFree, startRecognition]);
 
   const toggleMic = () => {
     if (isListening && !handsFree) {
@@ -240,6 +283,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
   const toggleHandsFree = async () => {
     if (handsFree) {
       handsFreeRef.current = false;
+      localStorage.setItem(AUTO_HANDS_FREE_KEY, 'false');
       setHandsFree(false);
       recognitionRef.current?.stop?.();
       setIsListening(false);
@@ -247,7 +291,12 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
     }
     handsFreeRef.current = true;
     setHandsFree(true);
-    await startRecognition(true);
+    localStorage.setItem(AUTO_HANDS_FREE_KEY, 'true');
+    const started = await startRecognition(true);
+    if (!started) {
+      handsFreeRef.current = false;
+      setHandsFree(false);
+    }
   };
 
   const coreStateLabel = {
@@ -268,12 +317,12 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
     <div className="v3-command-bridge">
       <section className="v3-hero-bridge">
         <div className="v3-hero-copy">
-          <div className="v3-eyebrow"><Sparkles size={14} /> ALFRED CORP V3.5 / STITCH CYBERPUNK NEXUS</div>
-          <h2>{language === 'es' ? 'Centro de mando cyberpunk con todos los diseños Stitch fusionados' : 'Cyberpunk command center with every Stitch design fused'}</h2>
+          <div className="v3-eyebrow"><Sparkles size={14} /> ALFRED CORP V3.5 / MAYORDOMO DIGITAL NEXUS</div>
+          <h2>{language === 'es' ? 'Centro de mando inteligente de Alfred para el Jefe Maestro' : 'Alfred intelligent command center for Jefe Maestro'}</h2>
           <p>
             {language === 'es'
-              ? 'Nueva versión mejorada inspirada en alfred-ai-butle.ai.studio: estado CORE online, enlace cuántico, seguridad balanceada, audio en tiempo real, 12 subagentes y una matriz visual que incorpora los diez paquetes Stitch importados.'
-              : 'Improved release inspired by alfred-ai-butle.ai.studio: CORE online status, quantum link, balanced security, real-time audio, 12 sub-agents, and a visual matrix incorporating the ten imported Stitch packs.'}
+              ? 'Nueva versión mejorada de Alfred: núcleo operativo en línea, voz en tiempo real, memoria persistente, seguridad balanceada, rutinas diarias, razonamiento visible y 12 subagentes listos para asistir al Jefe Maestro.'
+              : 'Improved Alfred release: operational core online, real-time voice, persistent memory, balanced security, daily routines, visible reasoning, and 12 sub-agents ready to assist Jefe Maestro.'}
           </p>
           <div className="v3-quick-grid">
             {quickPrompts.map(prompt => (
@@ -316,28 +365,33 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
           <button onClick={requestMicAccess} className="v3-permission-button" data-voice-command="request microphone access">
             <ShieldCheck size={14} /> {language === 'es' ? 'DAR ACCESO AL MICRÓFONO' : 'GRANT MICROPHONE ACCESS'}
           </button>
+          <p className="v3-mic-note">
+            {language === 'es'
+              ? 'Conceda el permiso una vez. Después Alfred se autoactiva al abrir el panel o al iniciar Windows.'
+              : 'Grant permission once. After that Alfred auto-activates when the panel opens or Windows starts.'}
+          </p>
         </div>
       </section>
 
       <section className="v3-pipeline-grid">
-        <StatusCard icon={<Activity />} label="Latency fabric" value="12ms" tone="cyan" />
-        <StatusCard icon={<Clapperboard />} label="MiniMax API" value={apiPipelines.find(p => p.id === 'minimax')?.statusLabel || 'awaiting local secret'} tone="violet" />
-        <StatusCard icon={<Palette />} label="Gemini Nano Banana" value={apiPipelines.find(p => p.id === 'gemini_nano_banana')?.statusLabel || 'awaiting local secret'} tone="gold" />
-        <StatusCard icon={<Wand2 />} label="Stitch MCP" value="10 packs fused" tone="emerald" />
-        <StatusCard icon={<Aperture />} label="Seedance 2.5" value="primary video" tone="cyan" />
-        <StatusCard icon={<BadgeDollarSign />} label="RevenueCat" value="monetization ready" tone="gold" />
-        <StatusCard icon={<Bot />} label="Agents" value={`${activeCount}/12 base + 16 business`} tone="emerald" />
+        <StatusCard icon={<Activity />} label="Alfred Core" value="online" tone="cyan" />
+        <StatusCard icon={<Clapperboard />} label="Voice Butler" value="real-time ready" tone="violet" />
+        <StatusCard icon={<Palette />} label="Memory" value="persistent" tone="gold" />
+        <StatusCard icon={<Wand2 />} label="Design System" value="Alfred visual core" tone="emerald" />
+        <StatusCard icon={<Aperture />} label="Daily Routines" value="voice activated" tone="cyan" />
+        <StatusCard icon={<BadgeDollarSign />} label="Business Layer" value="16 specialists" tone="gold" />
+        <StatusCard icon={<Bot />} label="Sub-agents" value={`${activeCount}/12 online`} tone="emerald" />
         <StatusCard icon={<Cpu />} label="Security" value={securityLevel} tone="violet" />
       </section>
 
-      <section className="v35-fusion-panel" aria-label={language === 'es' ? 'Matriz de diseños Stitch fusionados' : 'Fused Stitch design matrix'}>
+      <section className="v35-fusion-panel" aria-label={language === 'es' ? 'Matriz visual de Alfred' : 'Alfred visual matrix'}>
         <div className="v35-fusion-head">
           <div>
-            <div className="v3-eyebrow small"><Network size={13} /> STITCH FUSION MATRIX</div>
-            <h3>{language === 'es' ? 'Todos los diseños Stitch incorporados en ALFRED CORP V3.5' : 'Every Stitch design incorporated into ALFRED CORP V3.5'}</h3>
-            <p>{language === 'es' ? 'La cabina combina el diseño público ai.studio con Aether-Chassis HUD, Nexus Core, librería de 12 agentes, backplanes shader y motivos Three.js, implementados como CSS/React seguros.' : 'The cockpit combines the public ai.studio design with Aether-Chassis HUD, Nexus Core, the 12-agent library, shader backplanes, and Three.js motifs implemented as safe CSS/React.'}</p>
+            <div className="v3-eyebrow small"><Network size={13} /> ALFRED CORE MATRIX</div>
+            <h3>{language === 'es' ? 'Sistema visual central de Alfred' : 'Alfred central visual system'}</h3>
+            <p>{language === 'es' ? 'La cabina presenta a Alfred como mayordomo digital: núcleo, voz, memoria, seguridad, rutinas, subagentes, razonamiento, auditoría, briefing operativo y servicio continuo para el Jefe Maestro.' : 'The cockpit presents Alfred as a digital butler: core, voice, memory, security, routines, sub-agents, reasoning, audit, operational briefing, and continuous service for Jefe Maestro.'}</p>
           </div>
-          <div className="v35-fusion-badge"><Sparkles size={14} /> 10 ZIP PACKS</div>
+          <div className="v35-fusion-badge"><Sparkles size={14} /> ALFRED V3.5</div>
         </div>
         <div className="v35-fusion-grid">
           {STITCH_FUSION_PACKS.map(pack => (
@@ -366,7 +420,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
           <div className="v3-briefing-grid">
             <BriefingTile icon={<Cpu />} label="CPU" value={`${briefing.localSystem.cpuCores} cores`} detail={`${briefing.localSystem.platform} · load ${briefing.localSystem.loadAverage[0] ?? 0}`} />
             <BriefingTile icon={<HardDrive />} label="RAM" value={`${briefing.localSystem.memory.usedPct}% used`} detail={`${briefing.localSystem.memory.usedGb}/${briefing.localSystem.memory.totalGb} GB`} />
-            <BriefingTile icon={<Bot />} label="Agents" value={`${briefing.alfred.activeBaseAgents}/12 + ${briefing.alfred.businessAgents}`} detail={`${briefing.alfred.mediaAgents} media · ${briefing.alfred.primaryVideoProvider}`} />
+            <BriefingTile icon={<Bot />} label="Agents" value={`${briefing.alfred.activeBaseAgents}/12 + ${briefing.alfred.businessAgents}`} detail="subagentes · especialistas Alfred" />
             <BriefingTile icon={<Gauge />} label="Pipelines" value={`${briefing.integrations.configuredPipelines}/${briefing.integrations.totalPipelines}`} detail={`${briefing.integrations.mediaRouter.providers} providers · ${briefing.integrations.mediaRouter.seedanceTools} tools`} />
             <BriefingTile icon={<ShieldCheck />} label="Safety" value={briefing.safety.secretsInCode ? 'review' : 'clean'} detail={briefing.safety.writeActionsRequireConfirmation ? 'confirm writes' : 'open writes'} />
             <BriefingTile icon={<CheckCircle2 />} label="Next" value="continuous" detail={briefing.nextImprovements[0]} />
@@ -431,7 +485,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
             <AudioSpectrum active={coreState === 'SPEAKING' || isListening} />
             <div className="v3-live-transcript">
               <RadioTower size={13} />
-              <span>{liveTranscript || lastVoiceCommand || (language === 'es' ? 'Diga “Alfred” seguido de su orden...' : 'Say “Alfred” followed by your command...')}</span>
+              <span>{liveTranscript || lastVoiceCommand || (language === 'es' ? 'Diga “Buenos días Alfred”, “Buenas tardes Alfred” o “Buenas noches Alfred”.' : 'Say “Good morning Alfred”, “Good afternoon Alfred”, or “Good evening Alfred”.')}</span>
             </div>
             <div className="v3-composer-row">
               <button onClick={toggleMic} aria-label={language === 'es' ? 'Activar micrófono' : 'Activate microphone'} className={`v3-mic-button ${isListening ? 'listening' : ''}`} data-voice-command="microphone">
@@ -454,10 +508,10 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
         <aside className="v3-side-console">
           <div className="v3-mini-panel">
             <div className="v3-eyebrow small"><Power size={13} /> Hands-free controls</div>
-            <Detail label="Wake command" value="Alfred / Qué mundo / Llego papi" />
+            <Detail label="Wake command" value="Buenos días/tardes/noches Alfred" />
             <Detail label="Browser mic" value={permissionState} />
             <Detail label="Speech mode" value={handsFree ? 'continuous real-time' : 'push-to-talk'} />
-            <Detail label="Stitch packs" value="10 fused" />
+            <Detail label="Alfred modules" value="10 activos" />
           </div>
           <div className="v3-mini-panel">
             <div className="v3-eyebrow small"><Radio size={13} /> Voice system</div>

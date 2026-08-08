@@ -121,6 +121,25 @@ async function main() {
     throw new Error('Daily routine YouTube moderate-volume player action missing');
   }
 
+  const greetingRoutineChecks = [
+    ['Buenos días Alfred', 'morning_work'],
+    ['Buenas tardes Alfred', 'afternoon_service'],
+    ['Buenas noches Alfred', 'night_service'],
+  ];
+  for (const [message, expectedRoutineId] of greetingRoutineChecks) {
+    const greetingRoutine = await postJson('/api/chat', {
+      message,
+      language: 'es',
+      securityLevel: 'BALANCED',
+      sessionId: `smoke_test_${expectedRoutineId}`,
+      history: []
+    });
+    if (greetingRoutine.routineId !== expectedRoutineId) {
+      throw new Error(`Greeting routine ${message} expected ${expectedRoutineId}, got ${greetingRoutine.routineId}`);
+    }
+    if (!greetingRoutine.text.includes('Jefe Maestro')) throw new Error(`Greeting routine ${message} missing Jefe Maestro`);
+  }
+
   const telemetry = await getJson('/api/telemetry');
   if (!telemetry.metrics || telemetry.metrics.activeAgentsCount !== 12) throw new Error('Telemetry active agent count is not 12');
 
@@ -133,7 +152,7 @@ async function main() {
   console.log(`Media Router: ${mediaRouter.mediaRouter.primaryProvider} / ${mediaRouter.mediaRouter.agents.length} media agents / ${mediaRouter.mediaRouter.seedanceTools.length} Seedance tools`);
   console.log(`ALFRED V3.5: ${v3.designSystem} / ${v3.stitchFusion.importedZipPacks} Stitch packs / ${v3.apiPipelines.length} API pipelines / wake ${v3.handsFree.wakeCommands[0]}`);
   console.log(`Briefing: ${briefing.briefing.alfred.version} / RAM ${briefing.briefing.localSystem.memory.usedPct}% / next ${briefing.briefing.nextImprovements.length}`);
-  console.log(`Daily routines: ${dailyRoutine.routineId} / ${dailyRoutine.uiActions.length} actions`);
+  console.log(`Daily routines: ${dailyRoutine.routineId} / ${dailyRoutine.uiActions.length} actions / greetings 3 OK`);
   console.log(`Business routing: ${matchedIds.join(', ')}`);
   console.log(`TTS provider: ${tts.provider || 'cloud'} / preview audio OK`);
   console.log(`Routing architecture: ${architecture.assignedAgent.nameES}`);

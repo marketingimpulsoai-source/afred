@@ -1,4 +1,4 @@
-# ALFRED CORP V3.5 — Stitch Cyberpunk Nexus Fusion
+# ALFRED CORP V3.5 — Mayordomo Digital Nexus Fusion
 
 Este documento registra la integración de los diez paquetes Stitch `stitch_alfred_cyberpunk_command_center*.zip` y la referencia pública `https://alfred-ai-butle.ai.studio/` en la nueva versión visual **ALFRED CORP V3.5**.
 
@@ -87,7 +87,7 @@ docs/STITCH_CYBERPUNK_FUSION_V35.md
 ```json
 {
   "version": "ALFRED CORP V3.5",
-  "designSystem": "Stitch Cyberpunk Nexus · Aether-Chassis Fusion",
+  "designSystem": "ALFRED Mayordomo Digital Nexus · Aether Core Interface",
   "stitchFusion": {
     "importedZipPacks": 10,
     "referenceUrl": "https://alfred-ai-butle.ai.studio/",

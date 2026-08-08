@@ -41,7 +41,7 @@ export function getOperationalBriefing() {
     },
     alfred: {
       version: 'ALFRED CORP V3.5',
-      designSystem: 'Stitch Cyberpunk Nexus · Aether-Chassis Fusion',
+      designSystem: 'ALFRED Mayordomo Digital Nexus · Aether Core Interface',
       stitchFusion: {
         importedZipPacks: 10,
         referenceUrl: 'https://alfred-ai-butle.ai.studio/',
@@ -79,9 +79,9 @@ export function getOperationalBriefing() {
       },
     },
     nextImprovements: [
-      'Integrar Gemini native audio para latencia baja e interrupciones naturales.',
-      'Conectar Gemini Nano Banana real para diseño/imagen desde el panel.',
-      'Conectar MiniMax video API con colas, costos y descargas.',
+      'Integrar voz nativa de Alfred para latencia baja e interrupciones naturales.',
+      'Profundizar memoria operativa y preferencias del Jefe Maestro.',
+      'Añadir más automatizaciones seguras para rutinas diarias y briefing.',
       'Agregar Google Workspace/Notion MCP para briefing diario real.',
       'Añadir permisos granulares y auditoría para acciones externas.',
     ],

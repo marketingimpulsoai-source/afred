@@ -244,7 +244,7 @@ export default function App() {
         <div className="max-w-[1880px] mx-auto px-4 flex flex-wrap items-center justify-between gap-2">
           <p>ALFRED DIGITAL BUTLER V3.5</p>
           <span className="text-cyan-300/80">
-            {language === 'es' ? 'MANOS LIBRES · MINIMAX · GEMINI NANO BANANA · STITCH MCP' : 'HANDS-FREE · MINIMAX · GEMINI NANO BANANA · STITCH MCP'}
+            {language === 'es' ? 'VOZ · MEMORIA · RUTINAS · SUBAGENTES · SEGURIDAD' : 'VOICE · MEMORY · ROUTINES · SUB-AGENTS · SECURITY'}
           </span>
           <span>{language === 'es' ? 'ESTADO: OPERATIVO' : 'STATUS: OPERATIONAL'}</span>
         </div>

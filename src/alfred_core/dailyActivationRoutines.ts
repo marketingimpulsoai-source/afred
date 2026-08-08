@@ -27,6 +27,9 @@ export const DAILY_ROUTINE_TRIGGER_PHRASES = [
   'hora de trabajar',
   'buen dia alfred',
   'buenos dias alfred',
+  'buenos dias jefe maestro',
+  'buenos dias',
+  'buen dia',
   'buenas tardes jefe maestro',
   'buenas tardes alfred',
   'buenas tardes',
@@ -237,12 +240,19 @@ function isDailyRoutineTrigger(normalized: string): string | null {
   return null;
 }
 
+function getRoutinePeriodForTrigger(trigger: string, date = new Date()): AlfredDailyRoutinePeriod {
+  if (trigger.includes('buenos dias') || trigger.includes('buen dia')) return 'morning';
+  if (trigger.includes('buenas tardes')) return 'afternoon';
+  if (trigger.includes('buenas noches')) return 'night';
+  return getDailyRoutinePeriod(date);
+}
+
 export function detectDailyActivationRoutine(message: string, language: Language = 'es', date = new Date()): AlfredDailyRoutine | null {
   const normalized = normalize(message);
   const trigger = isDailyRoutineTrigger(normalized);
   if (!trigger) return null;
 
-  const period = getDailyRoutinePeriod(date);
+  const period = getRoutinePeriodForTrigger(trigger, date);
   if (period === 'morning') return morningRoutine(trigger);
   if (period === 'afternoon') return afternoonRoutine(trigger);
   if (period === 'night') return nightRoutine(trigger);
