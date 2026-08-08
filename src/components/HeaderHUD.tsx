@@ -1,5 +1,5 @@
 import React from 'react';
-import { Globe, Volume2, VolumeX, Shield, UserRound, Sparkles, Orbit, Cpu, RadioTower, Mic2 } from 'lucide-react';
+import { Globe, Volume2, VolumeX, Shield, UserRound, Orbit, Cpu, RadioTower } from 'lucide-react';
 import { Language, SecurityLevel, CoreState, TabId } from '../types';
 import { AlfredWorldOrb3D } from './AlfredWorldOrb3D';
 
@@ -55,7 +55,7 @@ export const HeaderHUD: React.FC<Props> = ({
 }) => {
   const labels = language === 'es' ? TABS_ES : TABS_EN;
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
-  const stateLabel = coreState === 'IDLE' ? (language === 'es' ? 'HANDS-FREE READY' : 'HANDS-FREE READY') : coreState;
+  const stateLabel = coreState === 'IDLE' ? 'CORE ONLINE' : coreState;
 
   return (
     <header className="alfred-v3-header sticky top-0 z-50">
@@ -70,8 +70,6 @@ export const HeaderHUD: React.FC<Props> = ({
                 <h1 className="v3-brand-title">
                   ALFRED <span>CORP V3.5</span>
                 </h1>
-                <div className="v3-version-pill"><Sparkles size={12} /> OBSIDIAN COMMAND</div>
-                <div className="v3-version-pill gold"><Mic2 size={12} /> REAL-TIME VOICE</div>
               </div>
               <p className="v3-brand-subtitle">
                 {language === 'es'

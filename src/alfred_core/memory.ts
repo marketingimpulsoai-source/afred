@@ -143,10 +143,14 @@ export function saveMessage(msg: Message): void {
   });
 }
 
-export function getMessagesBySession(sessionId: string, limit = 50): Message[] {
+export function getMessagesByDay(day: string, sessionId?: string, limit = 1000): Message[] {
   const rows = db.prepare(`
-    SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?
-  `).all(sessionId, limit) as any[];
+    SELECT * FROM messages
+    WHERE date(created_at / 1000, 'unixepoch', 'localtime') = ?
+      AND (? IS NULL OR session_id = ?)
+    ORDER BY created_at ASC
+    LIMIT ?
+  `).all(day, sessionId || null, sessionId || null, limit) as any[];
 
   return rows.map(r => ({
     id: r.id,
@@ -164,8 +168,39 @@ export function getMessagesBySession(sessionId: string, limit = 50): Message[] {
   }));
 }
 
+export function getMessagesBySession(sessionId: string, limit = 50): Message[] {
+  const rows = db.prepare(`
+    SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?
+  `).all(sessionId, limit) as any[];
+  return rows.map(r => ({
+    id: r.id,
+    sessionId: r.session_id,
+    sender: r.sender,
+    agentId: r.agent_id || undefined,
+    agentName: r.agent_name || undefined,
+    text: r.text,
+    timestamp: r.timestamp,
+    createdAt: r.created_at,
+    language: r.language,
+    toolCalls: r.tool_calls ? JSON.parse(r.tool_calls) : undefined,
+    routingDecision: r.routing_decision ? JSON.parse(r.routing_decision) : undefined,
+    confidenceScore: r.confidence_score ?? undefined,
+  }));
+}
+
+export function getConversationDays(limit = 90): Array<{ day: string; messageCount: number; sessionCount: number }> {
+  return db.prepare(`
+    SELECT date(created_at / 1000, 'unixepoch', 'localtime') AS day,
+           COUNT(*) AS messageCount,
+           COUNT(DISTINCT session_id) AS sessionCount
+    FROM messages
+    GROUP BY day
+    ORDER BY day DESC
+    LIMIT ?
+  `).all(limit) as Array<{ day: string; messageCount: number; sessionCount: number }>;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
-// Memoria semántica — almacenamiento y búsqueda por similitud
 // ─────────────────────────────────────────────────────────────────────────
 const insertMemoryStmt = db.prepare(`
   INSERT INTO memory_records (id, session_id, type, content, embedding, created_at, agent_id, importance, tags)

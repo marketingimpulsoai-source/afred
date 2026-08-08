@@ -335,17 +335,6 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
         </div>
 
         <div className="v3-permission-stage">
-          <div className="v35-shader-backplane" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div className="v35-ai-studio-readout" aria-label="AI Studio system status">
-            <b>SYSTEM STATUS</b>
-            <span>CORE: ONLINE</span>
-            <span>LATENCY: 12ms</span>
-            <span>QUANTUM LINK: ESTABLISHED</span>
-          </div>
           <button
             type="button"
             onClick={toggleHandsFree}
@@ -353,8 +342,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
             aria-label={language === 'es' ? 'Activar mundo 3D manos libres de Alfred' : 'Activate Alfred hands-free 3D world'}
             data-voice-command="activate hands free"
           >
-            <AlfredWorldOrb3D size="hero" active={isListening || handsFree || coreState === 'SPEAKING'} label="ALFRED 3D world orb" />
-            <span className="v3-orb-core-label"><Mic2 size={28} /><b>{handsFree ? 'LIVE' : 'WORLD'}</b></span>
+            <AlfredWorldOrb3D size="hero" active={isListening || coreState === 'PROCESSING' || coreState === 'ROUTING' || coreState === 'SPEAKING'} label="ALFRED 3D world orb" />
           </button>
           <div className="v3-permission-readout">
             <Metric label="MIC" value={permissionState.toUpperCase()} />

@@ -14,16 +14,16 @@ const SIZE_CLASS: Record<NonNullable<AlfredWorldOrb3DProps['size']>, string> = {
   panel: 'alfred-world-orb--panel',
 };
 
-function buildFibonacciSphere(count: number, radius: number): Float32Array {
+function buildWorldNodes(count: number, radius: number): Float32Array {
   const positions = new Float32Array(count * 3);
-  const golden = Math.PI * (3 - Math.sqrt(5));
-  for (let i = 0; i < count; i += 1) {
-    const y = 1 - (i / Math.max(1, count - 1)) * 2;
-    const r = Math.sqrt(1 - y * y);
-    const theta = golden * i;
-    positions[i * 3] = Math.cos(theta) * r * radius;
-    positions[i * 3 + 1] = y * radius;
-    positions[i * 3 + 2] = Math.sin(theta) * r * radius;
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  for (let index = 0; index < count; index += 1) {
+    const y = 1 - (index / Math.max(1, count - 1)) * 2;
+    const ringRadius = Math.sqrt(1 - y * y);
+    const theta = goldenAngle * index;
+    positions[index * 3] = Math.cos(theta) * ringRadius * radius;
+    positions[index * 3 + 1] = y * radius;
+    positions[index * 3 + 2] = Math.sin(theta) * ringRadius * radius;
   }
   return positions;
 }
@@ -31,116 +31,67 @@ function buildFibonacciSphere(count: number, radius: number): Float32Array {
 export const AlfredWorldOrb3D: React.FC<AlfredWorldOrb3DProps> = ({
   size = 'hero',
   active = false,
-  label = 'ALFRED WORLD CORE',
+  label = 'ALFRED 3D WORLD',
   className = '',
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const motionRef = useRef(active ? 2.15 : 0.72);
+
+  useEffect(() => {
+    motionRef.current = active ? 2.15 : 0.72;
+  }, [active]);
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
-    camera.position.z = size === 'mini' ? 3.4 : 3.15;
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    camera.position.z = 2.58;
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
+    const renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      powerPreference: 'high-performance',
+    });
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     mount.appendChild(renderer.domElement);
 
-    const globeGroup = new THREE.Group();
-    scene.add(globeGroup);
+    const world = new THREE.Group();
+    scene.add(world);
 
-    const globeRadius = 1;
-    const earthWireframe = new THREE.Mesh(
-      new THREE.SphereGeometry(globeRadius, 64, 64),
-      new THREE.MeshPhongMaterial({
-        color: 0x22d3ee,
-        wireframe: true,
-        transparent: true,
-        opacity: size === 'mini' ? 0.42 : 0.32,
-        emissive: 0x22d3ee,
-        emissiveIntensity: active ? 0.86 : 0.52,
-      })
-    );
-    globeGroup.add(earthWireframe);
-
-    const innerSphere = new THREE.Mesh(
-      new THREE.SphereGeometry(0.94, 48, 48),
-      new THREE.MeshBasicMaterial({ color: 0x071225, transparent: true, opacity: size === 'mini' ? 0.72 : 0.58 })
-    );
-    globeGroup.add(innerSphere);
-
-    const meridian = new THREE.Mesh(
-      new THREE.TorusGeometry(1.28, 0.006, 8, 160),
-      new THREE.MeshBasicMaterial({ color: 0x8aebff, transparent: true, opacity: 0.46 })
-    );
-    meridian.rotation.x = Math.PI / 2;
-    globeGroup.add(meridian);
-
-    const rings: THREE.Mesh[] = [];
-    [1.38, 1.62, 1.92].forEach((radius, index) => {
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(radius, index === 0 ? 0.01 : 0.007, 12, 160),
-        new THREE.MeshBasicMaterial({
-          color: index === 1 ? 0xddb7ff : index === 2 ? 0xffd882 : 0x22d3ee,
-          transparent: true,
-          opacity: 0.28 + index * 0.08,
-        })
-      );
-      ring.rotation.x = Math.PI / (2.6 + index * 0.3);
-      ring.rotation.y = Math.PI / (3.1 - index * 0.2);
-      globeGroup.add(ring);
-      rings.push(ring);
+    const worldMaterial = new THREE.MeshBasicMaterial({
+      color: 0x36e4ff,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.74,
     });
+    const worldMesh = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 24), worldMaterial);
+    world.add(worldMesh);
 
-    const nodeGeometry = new THREE.BufferGeometry();
-    nodeGeometry.setAttribute('position', new THREE.BufferAttribute(buildFibonacciSphere(size === 'mini' ? 90 : 160, 1.04), 3));
     const nodeMaterial = new THREE.PointsMaterial({
-      color: active ? 0xffd882 : 0x22d3ee,
-      size: size === 'mini' ? 0.025 : 0.021,
+      color: 0xffd166,
+      size: size === 'mini' ? 0.018 : 0.014,
       transparent: true,
-      opacity: active ? 0.92 : 0.74,
+      opacity: 0.8,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
+    const nodeGeometry = new THREE.BufferGeometry();
+    nodeGeometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(buildWorldNodes(size === 'mini' ? 48 : 96, 1.012), 3)
+    );
     const nodes = new THREE.Points(nodeGeometry, nodeMaterial);
-    globeGroup.add(nodes);
+    world.add(nodes);
 
-    const particleGeometry = new THREE.BufferGeometry();
-    const particleCount = size === 'mini' ? 80 : 180;
-    const particlePositions = new Float32Array(particleCount * 3);
-    for (let i = 0; i < particleCount; i += 1) {
-      const theta = (i * 2.3999632297) % (Math.PI * 2);
-      const phi = Math.acos(2 * ((i * 37) % particleCount) / particleCount - 1);
-      const r = 1.45 + ((i * 13) % 50) / 170;
-      particlePositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      particlePositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-      particlePositions[i * 3 + 2] = r * Math.cos(phi);
-    }
-    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-    const particleMaterial = new THREE.PointsMaterial({
-      color: 0x8aebff,
-      size: size === 'mini' ? 0.012 : 0.016,
-      transparent: true,
-      opacity: 0.48,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const particles = new THREE.Points(particleGeometry, particleMaterial);
-    globeGroup.add(particles);
+    const ambientLight = new THREE.AmbientLight(0x8beaff, 0.9);
+    scene.add(ambientLight);
 
-    scene.add(new THREE.AmbientLight(0x8aebff, 0.6));
-    const pointLight = new THREE.PointLight(0x22d3ee, active ? 2.4 : 1.8);
-    pointLight.position.set(4, 4, 5);
-    scene.add(pointLight);
-
-    let frame = 0;
     let raf = 0;
-    let pointerX = 0;
-    let pointerY = 0;
+    let lastTime = performance.now();
+    let pulse = 0;
 
     const resize = () => {
       const rect = mount.getBoundingClientRect();
@@ -151,68 +102,44 @@ export const AlfredWorldOrb3D: React.FC<AlfredWorldOrb3DProps> = ({
       camera.updateProjectionMatrix();
     };
 
-    const onPointerMove = (event: PointerEvent) => {
-      const rect = mount.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-      pointerX = ((event.clientX - rect.left) / rect.width - 0.5) * 0.24;
-      pointerY = ((event.clientY - rect.top) / rect.height - 0.5) * 0.18;
-    };
-
-    const animate = () => {
-      frame += 1;
-      const time = performance.now() * 0.001;
-      globeGroup.rotation.y += active ? 0.006 : 0.0032;
-      globeGroup.rotation.x += active ? 0.002 : 0.001;
-      globeGroup.rotation.y += (pointerX - globeGroup.rotation.y * 0.015) * 0.008;
-      globeGroup.rotation.x += (pointerY - globeGroup.rotation.x * 0.015) * 0.008;
-      earthWireframe.scale.setScalar(1 + Math.sin(time * (active ? 3.4 : 2.1)) * (active ? 0.045 : 0.024));
-      nodeMaterial.opacity = (active ? 0.76 : 0.58) + Math.sin(time * 2.8) * 0.18;
-      particleMaterial.opacity = 0.34 + Math.sin(time * 1.7) * 0.16;
-      rings.forEach((ring, index) => {
-        ring.rotation.x += (index + 1) * 0.0018;
-        ring.rotation.y += (index % 2 === 0 ? 1 : -1) * 0.0024;
-      });
-      particles.rotation.y -= 0.0014;
-      nodes.rotation.y += 0.0009;
-      if (frame % 2 === 0 || size !== 'mini') renderer.render(scene, camera);
+    const animate = (now: number) => {
+      const delta = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+      pulse += delta;
+      const motion = motionRef.current;
+      world.rotation.y += delta * 0.48 * motion;
+      world.rotation.x += delta * 0.12 * motion;
+      const breathing = 1 + Math.sin(pulse * (motion > 1 ? 3.2 : 1.2)) * (motion > 1 ? 0.018 : 0.008);
+      world.scale.setScalar(breathing);
+      nodeMaterial.opacity = 0.68 + Math.sin(pulse * (motion > 1 ? 4.4 : 1.8)) * (motion > 1 ? 0.18 : 0.08);
+      renderer.render(scene, camera);
       raf = requestAnimationFrame(animate);
     };
 
     const observer = new ResizeObserver(resize);
     observer.observe(mount);
-    mount.addEventListener('pointermove', onPointerMove);
     resize();
-    animate();
+    raf = requestAnimationFrame(animate);
 
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();
-      mount.removeEventListener('pointermove', onPointerMove);
       renderer.dispose();
-      earthWireframe.geometry.dispose();
-      (earthWireframe.material as THREE.Material).dispose();
-      innerSphere.geometry.dispose();
-      (innerSphere.material as THREE.Material).dispose();
-      meridian.geometry.dispose();
-      (meridian.material as THREE.Material).dispose();
-      rings.forEach((ring) => {
-        ring.geometry.dispose();
-        (ring.material as THREE.Material).dispose();
-      });
+      worldMesh.geometry.dispose();
+      worldMaterial.dispose();
       nodeGeometry.dispose();
       nodeMaterial.dispose();
-      particleGeometry.dispose();
-      particleMaterial.dispose();
       mount.querySelector('canvas')?.remove();
     };
-  }, [active, size]);
+  }, [size]);
 
   return (
-    <div className={`alfred-world-orb ${SIZE_CLASS[size]} ${active ? 'is-active' : ''} ${className}`} aria-label={label}>
-      <div className="alfred-world-orb__shader" aria-hidden="true" />
-      <div ref={mountRef} className="alfred-world-orb__canvas" aria-hidden="true" />
-      <div className="alfred-world-orb__scan" aria-hidden="true" />
-      <div className="alfred-world-orb__label" aria-hidden="true">{size === 'mini' ? 'A' : 'ALFRED WORLD'}</div>
+    <div
+      className={`alfred-world-orb ${SIZE_CLASS[size]} ${active ? 'is-active' : ''} ${className}`}
+      aria-label={label}
+      role="img"
+    >
+      <div ref={mountRef} className="alfred-world-orb__canvas" />
     </div>
   );
 };

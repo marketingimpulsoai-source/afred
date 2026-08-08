@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { processUserRequest, getUptimeSeconds, getTotalQueries } from './src/alfred_core/supervisor';
 import { getLLMProvider } from './src/alfred_core/llmProvider';
-import { getMessagesBySession, getRecentTelemetry } from './src/alfred_core/memory';
+import { getMessagesBySession, getMessagesByDay, getConversationDays, getRecentTelemetry } from './src/alfred_core/memory';
 import { SUB_AGENTS, AGENT_TOOLS, SAFETY_POLICIES } from './src/data/alfredData';
 import { BUSINESS_AGENTS, CLIENT_SEGMENTS, PAGE_VIDEO_FACTORY, findBusinessMatches } from './src/data/businessAgents';
 import { ALFRED_MEMORY_PREFERENCES } from './src/data/alfredMemoryPreferences';
@@ -141,6 +141,20 @@ app.get('/api/telemetry', (req, res) => {
 app.get('/api/history/:sessionId', (req, res) => {
   const messages = getMessagesBySession(req.params.sessionId, 200);
   res.json({ messages });
+});
+
+app.get('/api/history-days', (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 90, 1), 365);
+  res.json({ days: getConversationDays(limit) });
+});
+
+app.get('/api/history-day/:day', (req, res) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.day)) {
+    return res.status(400).json({ error: 'day must use YYYY-MM-DD' });
+  }
+  const sessionId = typeof req.query.sessionId === 'string' ? req.query.sessionId : undefined;
+  const messages = getMessagesByDay(req.params.day, sessionId, 1000);
+  res.json({ day: req.params.day, sessionId: sessionId || null, messages });
 });
 
 // ── Chat principal — Orquestación real ──────────────────────────────────

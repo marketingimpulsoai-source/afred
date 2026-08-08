@@ -149,6 +149,15 @@ async function main() {
     if (!greetingRoutine.text.includes('Jefe Maestro')) throw new Error(`Greeting routine ${message} missing Jefe Maestro`);
   }
 
+  const historyDays = await getJson('/api/history-days?limit=7');
+  if (!Array.isArray(historyDays.days)) throw new Error('Daily conversation index missing');
+  if (historyDays.days.length > 0) {
+    const dayHistory = await getJson(`/api/history-day/${historyDays.days[0].day}`);
+    if (dayHistory.day !== historyDays.days[0].day || !Array.isArray(dayHistory.messages)) {
+      throw new Error('Daily conversation retrieval missing');
+    }
+  }
+
   const telemetry = await getJson('/api/telemetry');
   if (!telemetry.metrics || telemetry.metrics.activeAgentsCount !== 12) throw new Error('Telemetry active agent count is not 12');
 
