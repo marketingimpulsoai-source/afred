@@ -17,6 +17,7 @@ import { synthesizeSpeech } from './src/utils/ttsEngine';
 import { getRevenueCatMcpStatus, buildHermesRevenueCatMcpConfigTemplate } from './src/integrations/revenueCatMcp';
 import { getMediaRouterStatus, routeMediaRequest } from './src/data/mediaRouter';
 import { getAlfredV3ApiStatus } from './src/integrations/alfredV3Apis';
+import { getOperationalBriefing } from './src/integrations/operationalBriefing';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,6 +69,10 @@ app.get('/api/alfred-v3/status', (req, res) => {
     },
     apiPipelines: getAlfredV3ApiStatus(),
   });
+});
+
+app.get('/api/briefing', (req, res) => {
+  res.json({ briefing: getOperationalBriefing() });
 });
 
 app.get('/api/integrations/revenuecat', (req, res) => {

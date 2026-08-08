@@ -118,6 +118,7 @@ Documentación extensa:
 - `docs/REVENUECAT_MCP.md`
 - `docs/MEDIA_ROUTER_SEEDANCE_2_5.md`
 - `docs/ALFRED_CORP_V3_HANDS_FREE.md`
+- `docs/OPERATIONAL_BRIEFING_V3.md`
 - `docs/WINDOWS_RUN_COMMANDS.md`
 - `docs/ALFRED_MEMORY_PREFERENCES.md`
 

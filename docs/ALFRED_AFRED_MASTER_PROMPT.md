@@ -366,7 +366,8 @@ Cuando Hermes/Alfred retome este proyecto, debe seguir este procedimiento:
 
 Prioridad alta:
 
-- Integración real Gemini native audio para latencia baja.
+- Briefing Operativo V3 ya implementado: endpoint `/api/briefing`, tarjetas visuales CPU/RAM/Agents/Pipelines/Safety/Next y smoke test.
+- Integrar Gemini native audio para latencia baja e interrupciones naturales.
 - Integración real Gemini Nano Banana image/design API.
 - Integración real MiniMax video API.
 - MCP Google Workspace: Gmail, Calendar, Drive, Sheets.

@@ -135,6 +135,17 @@
 .v3-status-card { border-radius:6px; padding:1rem; display:flex; align-items:center; gap:0.9rem; min-height:86px; }
 .v3-status-icon { color:#00f0ff; flex:0 0 auto; }
 .v3-status-card.violet .v3-status-icon { color:#8a2be2; } .v3-status-card.gold .v3-status-icon { color:#ffd700; } .v3-status-card.emerald .v3-status-icon { color:#10b981; }
+.v3-briefing-panel { position:relative; overflow:hidden; border:1px solid rgba(0,240,255,0.18); border-radius:6px; padding:1.15rem; background:linear-gradient(135deg,rgba(10,10,11,0.82),rgba(19,19,20,0.72)), radial-gradient(circle at top right,rgba(16,185,129,0.16),transparent 38%), radial-gradient(circle at bottom left,rgba(0,240,255,0.14),transparent 34%); box-shadow:0 26px 86px rgba(0,0,0,0.34), inset 0 0 0 1px rgba(255,255,255,0.035); backdrop-filter:blur(22px) saturate(1.3); }
+.v3-briefing-head { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; padding-bottom:1rem; border-bottom:1px solid rgba(0,240,255,0.13); }
+.v3-briefing-head h3 { margin-top:0.35rem; color:white; font-family:'Geist','Inter',sans-serif; font-size:1.32rem; font-weight:720; }
+.v3-briefing-head p { margin-top:0.35rem; color:rgba(229,226,227,0.70); max-width:900px; line-height:1.55; }
+.v3-briefing-head time { display:inline-flex; align-items:center; gap:0.45rem; border:1px solid rgba(255,215,0,0.28); color:#ffd700; border-radius:999px; padding:0.48rem 0.7rem; font-family:'JetBrains Mono',monospace; font-size:0.62rem; letter-spacing:0.12em; white-space:nowrap; }
+.v3-briefing-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0.72rem; padding-top:1rem; }
+.v3-briefing-tile { min-height:108px; border:1px solid rgba(219,252,255,0.13); border-radius:8px; padding:0.92rem; display:flex; align-items:flex-start; gap:0.75rem; background:rgba(10,10,11,0.46); }
+.v3-briefing-icon { color:#00f0ff; flex:0 0 auto; filter:drop-shadow(0 0 14px rgba(0,240,255,0.35)); }
+.v3-briefing-tile span { display:block; color:rgba(185,202,203,0.72); font-family:'JetBrains Mono',monospace; font-size:0.58rem; letter-spacing:0.15em; text-transform:uppercase; }
+.v3-briefing-tile b { display:block; margin-top:0.22rem; color:#dbfcff; font-family:'JetBrains Mono',monospace; font-size:0.8rem; }
+.v3-briefing-tile small { display:block; margin-top:0.38rem; color:rgba(229,226,227,0.62); line-height:1.35; }
 .v3-live-grid { display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:1.25rem; }
 .v3-chat-shell { min-height:720px; display:flex; flex-direction:column; }
 .v3-chat-header { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; padding:1.15rem 1.25rem; border-bottom:1px solid rgba(0,240,255,0.13); }
@@ -171,6 +182,6 @@
 .v3-spectrum.tall { height:150px; }
 .v3-spectrum div { flex:1; border-radius:999px 999px 2px 2px; background:linear-gradient(to top,#00f0ff,#8a2be2,#ffd700); opacity:0.82; min-height:4px; }
 .v2-footer { border-top:1px solid rgba(0,240,255,0.15); background:rgba(10,10,11,0.70); backdrop-filter:blur(16px); padding:0.85rem 0; font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:#849495; letter-spacing:0.12em; text-transform:uppercase; }
-@media (max-width: 1320px) { .v3-hero-bridge,.v3-live-grid { grid-template-columns:1fr; } .v3-pipeline-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width: 760px) { .v3-quick-grid,.v3-pipeline-grid,.v3-permission-readout { grid-template-columns:1fr; } .v3-composer-row { flex-direction:column; align-items:stretch; } .v3-top-metrics { justify-content:flex-start; } .v3-hero-copy h2 { font-size:2.85rem; } .v3-permission-orb { width:min(280px,82vw); } }
+@media (max-width: 1320px) { .v3-hero-bridge,.v3-live-grid { grid-template-columns:1fr; } .v3-pipeline-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .v3-briefing-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width: 760px) { .v3-quick-grid,.v3-pipeline-grid,.v3-permission-readout,.v3-briefing-grid { grid-template-columns:1fr; } .v3-briefing-head { flex-direction:column; } .v3-composer-row { flex-direction:column; align-items:stretch; } .v3-top-metrics { justify-content:flex-start; } .v3-hero-copy h2 { font-size:2.85rem; } .v3-permission-orb { width:min(280px,82vw); } }
 @media (prefers-reduced-motion: reduce) { .alfred-v2-shell::before,.alfred-v2-shell::after,.v3-logo-ring,.v3-hero-bridge::before,.v3-chat-shell::before,.v3-mini-panel::before,.v3-orb-ring { animation:none !important; } }

@@ -52,6 +52,11 @@ async function main() {
   if (!Array.isArray(v3.apiPipelines) || v3.apiPipelines.length < 4) throw new Error('ALFRED V3 API pipelines missing');
   if (!v3.handsFree?.wakeCommands?.includes('alfred')) throw new Error('ALFRED V3 wake command missing');
 
+  const briefing = await getJson('/api/briefing');
+  if (briefing.briefing?.alfred?.version !== 'ALFRED CORP V3') throw new Error('Operational briefing version missing');
+  if (briefing.briefing?.alfred?.activeBaseAgents !== 12) throw new Error('Operational briefing active agents mismatch');
+  if (briefing.briefing?.safety?.secretsInCode !== false) throw new Error('Operational briefing secret guard failed');
+
   const businessRoute = await postJson('/api/business-agents/route', {
     message: 'Crear páginas y videos para clientes SaaS, clínicas e inmobiliarias con CreativeForge',
     limit: 4,
@@ -107,6 +112,7 @@ async function main() {
   console.log(`RevenueCat MCP: ${revenueCat.revenueCat.configured ? 'configured' : 'awaiting local secret'} / ${revenueCat.revenueCat.capabilities.length} capability groups`);
   console.log(`Media Router: ${mediaRouter.mediaRouter.primaryProvider} / ${mediaRouter.mediaRouter.agents.length} media agents / ${mediaRouter.mediaRouter.seedanceTools.length} Seedance tools`);
   console.log(`ALFRED V3: ${v3.designSystem} / ${v3.apiPipelines.length} API pipelines / wake ${v3.handsFree.wakeCommands[0]}`);
+  console.log(`Briefing: ${briefing.briefing.alfred.version} / RAM ${briefing.briefing.localSystem.memory.usedPct}% / next ${briefing.briefing.nextImprovements.length}`);
   console.log(`Business routing: ${matchedIds.join(', ')}`);
   console.log(`TTS provider: ${tts.provider || 'cloud'} / preview audio OK`);
   console.log(`Routing architecture: ${architecture.assignedAgent.nameES}`);

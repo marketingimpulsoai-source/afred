@@ -3,6 +3,7 @@ import {
   Mic, Send, Loader2, Volume2, ChevronDown, ChevronUp, Activity, Radio, ShieldCheck,
   Sparkles, BrainCircuit, Aperture, Waves, Network, Shield, Zap, Mic2, Keyboard,
   RadioTower, Wand2, Palette, Clapperboard, BadgeDollarSign, Bot, Cpu, Power,
+  Gauge, HardDrive, ServerCog, Clock3, CheckCircle2,
 } from 'lucide-react';
 import { Language, CoreState, Message, SubAgent, SecurityLevel } from '../types';
 import { playAudioTTS, playAcknowledgmentChime } from '../utils/audioTTS';
@@ -19,6 +20,31 @@ interface Props {
 
 type PermissionStateLabel = 'unknown' | 'granted' | 'prompt' | 'denied' | 'unsupported';
 type ApiPipelineStatus = { id: string; label: string; purpose: string; configured: boolean; statusLabel: string };
+type OperationalBriefing = {
+  generatedAt: string;
+  mission: string;
+  localSystem: {
+    platform: string;
+    uptimeSeconds: number;
+    cpuCores: number;
+    loadAverage: number[];
+    memory: { totalGb: number; usedGb: number; freeGb: number; usedPct: number };
+  };
+  alfred: {
+    version: string;
+    activeBaseAgents: number;
+    businessAgents: number;
+    mediaAgents: number;
+    primaryVideoProvider: string;
+  };
+  integrations: {
+    configuredPipelines: number;
+    totalPipelines: number;
+    mediaRouter: { providers: number; seedanceTools: number };
+  };
+  nextImprovements: string[];
+  safety: { secretsInCode: boolean; writeActionsRequireConfirmation: boolean; promptInjectionAware: boolean };
+};
 
 const QUICK_ES = [
   'Alfred, activa modo manos libres',
@@ -48,6 +74,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
   const [lastVoiceCommand, setLastVoiceCommand] = useState('');
   const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({});
   const [apiPipelines, setApiPipelines] = useState<ApiPipelineStatus[]>([]);
+  const [briefing, setBriefing] = useState<OperationalBriefing | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const handsFreeRef = useRef(false);
@@ -61,6 +88,11 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       .then(res => res.json())
       .then(data => setApiPipelines(data.apiPipelines || []))
       .catch(() => setApiPipelines([]));
+
+    fetch('/api/briefing')
+      .then(res => res.json())
+      .then(data => setBriefing(data.briefing || null))
+      .catch(() => setBriefing(null));
   }, []);
 
   useEffect(() => {
@@ -274,6 +306,27 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
         <StatusCard icon={<Cpu />} label="Security" value={securityLevel} tone="violet" />
       </section>
 
+      {briefing && (
+        <section className="v3-briefing-panel" aria-label={language === 'es' ? 'Briefing operativo de Alfred' : 'Alfred operational briefing'}>
+          <div className="v3-briefing-head">
+            <div>
+              <div className="v3-eyebrow small"><ServerCog size={13} /> OPERATIONAL BRIEFING</div>
+              <h3>{language === 'es' ? 'Briefing operativo del sistema local' : 'Local system operational briefing'}</h3>
+              <p>{briefing.mission}</p>
+            </div>
+            <time><Clock3 size={14} /> {new Date(briefing.generatedAt).toLocaleTimeString()}</time>
+          </div>
+          <div className="v3-briefing-grid">
+            <BriefingTile icon={<Cpu />} label="CPU" value={`${briefing.localSystem.cpuCores} cores`} detail={`${briefing.localSystem.platform} · load ${briefing.localSystem.loadAverage[0] ?? 0}`} />
+            <BriefingTile icon={<HardDrive />} label="RAM" value={`${briefing.localSystem.memory.usedPct}% used`} detail={`${briefing.localSystem.memory.usedGb}/${briefing.localSystem.memory.totalGb} GB`} />
+            <BriefingTile icon={<Bot />} label="Agents" value={`${briefing.alfred.activeBaseAgents}/12 + ${briefing.alfred.businessAgents}`} detail={`${briefing.alfred.mediaAgents} media · ${briefing.alfred.primaryVideoProvider}`} />
+            <BriefingTile icon={<Gauge />} label="Pipelines" value={`${briefing.integrations.configuredPipelines}/${briefing.integrations.totalPipelines}`} detail={`${briefing.integrations.mediaRouter.providers} providers · ${briefing.integrations.mediaRouter.seedanceTools} tools`} />
+            <BriefingTile icon={<ShieldCheck />} label="Safety" value={briefing.safety.secretsInCode ? 'review' : 'clean'} detail={briefing.safety.writeActionsRequireConfirmation ? 'confirm writes' : 'open writes'} />
+            <BriefingTile icon={<CheckCircle2 />} label="Next" value="continuous" detail={briefing.nextImprovements[0]} />
+          </div>
+        </section>
+      )}
+
       <section className="v3-live-grid">
         <div className="v3-chat-shell">
           <div className="v3-chat-header">
@@ -383,6 +436,17 @@ const StatusCard = ({ icon, label, value, tone }: { icon: React.ReactNode; label
   <div className={`v3-status-card ${tone}`}>
     <div className="v3-status-icon">{icon}</div>
     <div><span>{label}</span><b>{value}</b></div>
+  </div>
+);
+
+const BriefingTile = ({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: string; detail: string }) => (
+  <div className="v3-briefing-tile">
+    <div className="v3-briefing-icon">{icon}</div>
+    <div>
+      <span>{label}</span>
+      <b>{value}</b>
+      <small>{detail}</small>
+    </div>
   </div>
 );
 
