@@ -15,5 +15,6 @@ set STITCH_MCP_API_KEY=
 set SERPER_API_KEY=
 start "ALFRED CORE SERVER" /min cmd /c "node dist\server.mjs"
 timeout /t 5 /nobreak >nul
+start "ALFRED VOICE BRIDGE" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\Desktop\afred\scripts\windows-alfred-voice-bridge.ps1"
 start "" "http://localhost:3000"
 endlocal

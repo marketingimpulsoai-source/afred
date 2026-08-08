@@ -67,8 +67,15 @@ app.get('/api/alfred-v3/status', (req, res) => {
       referenceUrl: 'https://alfred-ai-butle.ai.studio/',
       effects: ['glass-panel', 'chamfered-panels', 'data-grid', 'scanline', 'pulse-glow', 'audio-waveform', 'flicker', 'shader-backplane', 'threejs-orbital-motif'],
     },
+    worldOrb3D: {
+      importedAnimationPacks: 3,
+      sourceZipPacks: ['(10)', '(11)', '(12)'],
+      engine: 'local React + Three.js + CSS shader fallback',
+      placement: ['header mini world', 'main hands-free orb'],
+      browserIndependence: 'Windows Voice Bridge keeps listening when browser speech recognition fails',
+    },
     handsFree: {
-      mode: 'browser speech recognition + server chat + TTS fallback',
+      mode: 'browser speech recognition + Windows native voice bridge + server chat + TTS fallback',
       wakeCommands: ['alfred', 'hey alfred', 'oye alfred', 'que mundo', 'llego papi', 'jefe maestro', 'hora de trabajar', 'que hay de nuevo'],
       browserPermissions: ['microphone', 'speechRecognition', 'audioOutput'],
     },

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { existsSync, readFileSync } from 'node:fs';
+
 const BASE = process.env.ALFRED_BASE_URL || 'http://localhost:3000';
 
 async function getJson(path) {
@@ -55,6 +57,8 @@ async function main() {
   if (v3.stitchFusion?.importedZipPacks !== 10) throw new Error('Stitch fusion pack count missing');
   if (!v3.stitchFusion?.effects?.includes('shader-backplane')) throw new Error('Stitch shader effect missing');
   if (!Array.isArray(v3.apiPipelines) || v3.apiPipelines.length < 4) throw new Error('ALFRED V3.5 API pipelines missing');
+  if (v3.worldOrb3D?.importedAnimationPacks !== 3) throw new Error('ALFRED 3D world orb animation packs missing');
+  if (!String(v3.handsFree?.mode || '').includes('Windows native voice bridge')) throw new Error('Windows voice bridge not declared in V3 status');
   if (!v3.handsFree?.wakeCommands?.includes('alfred')) throw new Error('ALFRED V3.5 wake command missing');
 
   const briefing = await getJson('/api/briefing');
@@ -142,6 +146,19 @@ async function main() {
 
   const telemetry = await getJson('/api/telemetry');
   if (!telemetry.metrics || telemetry.metrics.activeAgentsCount !== 12) throw new Error('Telemetry active agent count is not 12');
+
+  const voiceBridgeScript = 'scripts/windows-alfred-voice-bridge.ps1';
+  const voiceBridgeLauncher = 'scripts/windows-start-voice-bridge.bat';
+  const startupLauncher = 'scripts/windows-start-alfred.bat';
+  if (!existsSync(voiceBridgeScript)) throw new Error('Windows voice bridge script missing');
+  if (!existsSync(voiceBridgeLauncher)) throw new Error('Windows voice bridge launcher missing');
+  if (!existsSync(startupLauncher)) throw new Error('Windows startup launcher missing');
+  const bridgeSource = readFileSync(voiceBridgeScript, 'utf8');
+  if (!bridgeSource.includes('SpeechRecognitionEngine') || !bridgeSource.includes('/api/chat')) {
+    throw new Error('Windows voice bridge does not wire recognition to Alfred chat');
+  }
+  const startupSource = readFileSync(startupLauncher, 'utf8');
+  if (!startupSource.includes('windows-alfred-voice-bridge.ps1')) throw new Error('Startup launcher does not start voice bridge');
 
   console.log('SMOKE OK');
   console.log(`Provider: ${health.llmProvider} (${health.llmModel})`);

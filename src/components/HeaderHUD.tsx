@@ -1,6 +1,7 @@
 import React from 'react';
 import { Globe, Volume2, VolumeX, Shield, UserRound, Sparkles, Orbit, Cpu, RadioTower, Mic2 } from 'lucide-react';
 import { Language, SecurityLevel, CoreState, TabId } from '../types';
+import { AlfredWorldOrb3D } from './AlfredWorldOrb3D';
 
 interface Props {
   language: Language;
@@ -61,10 +62,8 @@ export const HeaderHUD: React.FC<Props> = ({
       <div className="v3-header-shell max-w-[1920px] mx-auto px-4 py-4">
         <div className="flex flex-col 2xl:flex-row gap-4 2xl:items-center 2xl:justify-between">
           <div className="flex items-center gap-4 min-w-0">
-            <div className="v3-logo-orb" aria-label="ALFRED CORP V3.5">
-              <div className="v3-logo-ring one" />
-              <div className="v3-logo-ring two" />
-              <span>A</span>
+            <div className="v3-logo-orb world" aria-label="ALFRED CORP V3.5 World Core">
+              <AlfredWorldOrb3D size="mini" active={coreState === 'LISTENING' || coreState === 'SPEAKING'} label="ALFRED mini world core" />
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-end gap-3">

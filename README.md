@@ -119,6 +119,7 @@ Documentación extensa:
 - `docs/MEDIA_ROUTER_SEEDANCE_2_5.md`
 - `docs/STITCH_CYBERPUNK_FUSION_V35.md`
 - `docs/ALFRED_VOICE_AUTOSTART.md`
+- `docs/ALFRED_WORLD_ORB_3D.md`
 - `docs/ALFRED_CORP_V3_HANDS_FREE.md`
 - `docs/rutinas-diarias-alfred.md`
 - `docs/OPERATIONAL_BRIEFING_V3.md`

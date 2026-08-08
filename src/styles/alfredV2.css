@@ -290,6 +290,154 @@
 .v35-fusion-card small { margin-top:0.44rem; color:rgba(187,201,205,0.74); line-height:1.32; }
 .v3-spectrum div { transform-origin:bottom; animation-name:v35-wave-pulse; }
 @keyframes v35-wave-pulse { 0%,100% { transform:scaleY(0.52); opacity:0.58; } 50% { transform:scaleY(1.38); opacity:1; } }
+/* ALFRED World Orb 3D — imported from Stitch animations 10/11/12 and rebuilt as local React/Three.js */
+.v3-logo-orb.world {
+  width:74px;
+  height:74px;
+  overflow:visible;
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  font-size:0;
+}
+.alfred-world-orb {
+  position:relative;
+  width:100%;
+  height:100%;
+  min-width:72px;
+  min-height:72px;
+  border-radius:999px;
+  isolation:isolate;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(34,211,238,0.22), transparent 28%),
+    radial-gradient(circle at 42% 35%, rgba(138,235,255,0.28), rgba(12,19,36,0.88) 54%, rgba(0,0,0,0.96));
+  border:1px solid rgba(138,235,255,0.44);
+  box-shadow:
+    0 0 42px rgba(34,211,238,0.28),
+    0 0 96px rgba(138,43,226,0.18),
+    inset 0 0 42px rgba(34,211,238,0.15);
+}
+.alfred-world-orb--mini { width:74px; height:74px; min-width:74px; min-height:74px; }
+.alfred-world-orb--hero { width:min(360px,80vw); height:min(360px,80vw); }
+.alfred-world-orb--panel { width:180px; height:180px; }
+.alfred-world-orb__canvas,
+.alfred-world-orb__shader,
+.alfred-world-orb__scan {
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+}
+.alfred-world-orb__canvas { z-index:3; }
+.alfred-world-orb__canvas canvas { width:100% !important; height:100% !important; display:block; filter:drop-shadow(0 0 16px rgba(34,211,238,0.36)); }
+.alfred-world-orb__shader {
+  z-index:1;
+  opacity:0.92;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 17px, rgba(34,211,238,0.10) 18px, transparent 19px),
+    repeating-linear-gradient(90deg, transparent 0 19px, rgba(138,183,255,0.08) 20px, transparent 21px),
+    conic-gradient(from 80deg, transparent, rgba(34,211,238,0.20), transparent, rgba(221,183,255,0.18), transparent, rgba(255,216,130,0.12), transparent);
+  animation: alfred-world-grid 14s linear infinite;
+}
+.alfred-world-orb__shader::after {
+  content:'';
+  position:absolute;
+  inset:8%;
+  border-radius:inherit;
+  border:1px dashed rgba(138,235,255,0.35);
+  box-shadow:inset 0 0 28px rgba(34,211,238,0.16);
+  animation:v3-spin 18s linear infinite reverse;
+}
+.alfred-world-orb__scan {
+  z-index:4;
+  pointer-events:none;
+  background:
+    linear-gradient(180deg, transparent 0 46%, rgba(34,211,238,0.34) 49%, rgba(255,216,130,0.22) 50%, rgba(34,211,238,0.34) 51%, transparent 56%),
+    radial-gradient(circle at 50% 58%, transparent 0 54%, rgba(34,211,238,0.16) 57%, transparent 64%);
+  mix-blend-mode:screen;
+  opacity:0.72;
+  animation: alfred-world-scan 3.8s ease-in-out infinite;
+}
+.alfred-world-orb__label {
+  position:absolute;
+  left:50%;
+  bottom:15%;
+  transform:translateX(-50%);
+  z-index:5;
+  color:#ffd882;
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.54rem;
+  letter-spacing:0.22em;
+  text-shadow:0 0 14px rgba(255,216,130,0.55);
+  white-space:nowrap;
+}
+.alfred-world-orb--mini .alfred-world-orb__label {
+  top:50%;
+  bottom:auto;
+  transform:translate(-50%,-50%);
+  font-family:'Playfair Display',serif;
+  font-size:1rem;
+  letter-spacing:0;
+  color:#dce1fb;
+  opacity:0.9;
+}
+.alfred-world-orb.is-active {
+  border-color:rgba(255,216,130,0.70);
+  box-shadow:
+    0 0 52px rgba(34,211,238,0.44),
+    0 0 120px rgba(138,43,226,0.28),
+    inset 0 0 54px rgba(255,216,130,0.15);
+}
+.v3-permission-orb.world {
+  overflow:visible;
+  border-radius:999px;
+  filter:saturate(1.12);
+}
+.v3-permission-orb.world::before,
+.v3-permission-orb.world::after {
+  content:'';
+  position:absolute;
+  border-radius:999px;
+  pointer-events:none;
+  z-index:0;
+}
+.v3-permission-orb.world::before {
+  inset:-12%;
+  border:1px dashed rgba(34,211,238,0.42);
+  animation:v3-spin 18s linear infinite;
+}
+.v3-permission-orb.world::after {
+  inset:11%;
+  border:1px solid rgba(221,183,255,0.28);
+  animation:v3-spin 11s linear infinite reverse;
+}
+.v3-orb-core-label {
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  z-index:6;
+  width:86px;
+  height:86px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  color:#dbfcff;
+  background:radial-gradient(circle,rgba(0,0,0,0.20),rgba(7,13,31,0.18) 62%,transparent);
+  text-shadow:0 0 18px rgba(34,211,238,0.52);
+  pointer-events:none;
+}
+.v3-orb-core-label b {
+  display:block;
+  margin-top:-0.2rem;
+  color:#ffd882;
+  font-family:'JetBrains Mono',monospace;
+  font-size:0.54rem;
+  letter-spacing:0.18em;
+}
+@keyframes alfred-world-grid { to { transform:rotate(360deg) scale(1.04); } }
+@keyframes alfred-world-scan { 0%,100% { transform:translateY(-16%) scale(1.02); opacity:0.38; } 50% { transform:translateY(16%) scale(1.08); opacity:0.88; } }
+
 .v2-footer { border-top:1px solid rgba(0,240,255,0.15); background:rgba(10,10,11,0.70); backdrop-filter:blur(16px); padding:0.85rem 0; font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:#849495; letter-spacing:0.12em; text-transform:uppercase; }
 @media (max-width: 1320px) { .v3-hero-bridge,.v3-live-grid { grid-template-columns:1fr; } .v3-pipeline-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .v3-briefing-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .v35-fusion-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width: 760px) { .v3-quick-grid,.v3-pipeline-grid,.v3-permission-readout,.v3-briefing-grid,.v35-fusion-grid { grid-template-columns:1fr; } .v3-briefing-head,.v35-fusion-head { flex-direction:column; } .v3-composer-row { flex-direction:column; align-items:stretch; } .v3-top-metrics { justify-content:flex-start; } .v3-hero-copy h2 { font-size:2.85rem; } .v3-permission-orb { width:min(280px,82vw); } .v35-ai-studio-readout { position:relative; width:100%; right:auto; top:auto; margin-bottom:0.75rem; } }

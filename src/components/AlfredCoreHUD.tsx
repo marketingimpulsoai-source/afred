@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Language, CoreState, Message, SubAgent, SecurityLevel } from '../types';
 import { playAudioTTS, playAcknowledgmentChime } from '../utils/audioTTS';
+import { AlfredWorldOrb3D } from './AlfredWorldOrb3D';
 
 interface Props {
   language: Language;
@@ -348,14 +349,12 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
           <button
             type="button"
             onClick={toggleHandsFree}
-            className={`v3-permission-orb ${isListening ? 'listening' : ''} ${handsFree ? 'handsfree' : ''} permission-${permissionState}`}
-            aria-label={language === 'es' ? 'Activar modo manos libres de Alfred' : 'Activate Alfred hands-free mode'}
+            className={`v3-permission-orb world ${isListening ? 'listening' : ''} ${handsFree ? 'handsfree' : ''} permission-${permissionState}`}
+            aria-label={language === 'es' ? 'Activar mundo 3D manos libres de Alfred' : 'Activate Alfred hands-free 3D world'}
             data-voice-command="activate hands free"
           >
-            <span className="v3-orb-ring ring-a" />
-            <span className="v3-orb-ring ring-b" />
-            <span className="v3-orb-ring ring-c" />
-            <span className="v3-orb-core"><Mic2 size={56} /><b>{handsFree ? 'LIVE' : 'V3'}</b></span>
+            <AlfredWorldOrb3D size="hero" active={isListening || handsFree || coreState === 'SPEAKING'} label="ALFRED 3D world orb" />
+            <span className="v3-orb-core-label"><Mic2 size={28} /><b>{handsFree ? 'LIVE' : 'WORLD'}</b></span>
           </button>
           <div className="v3-permission-readout">
             <Metric label="MIC" value={permissionState.toUpperCase()} />
