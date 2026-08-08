@@ -63,7 +63,7 @@ const QUICK_EN = [
   'Orchestrate agents to deliver a full campaign',
 ];
 
-const WAKE_WORDS = ['alfred', 'hey alfred', 'oye alfred'];
+const WAKE_WORDS = ['alfred', 'hey alfred', 'oye alfred', 'que mundo', 'qué mundo', 'llego papi', 'jefe maestro'];
 
 export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, onSendMessage, subAgents, securityLevel, audioMuted }) => {
   const [input, setInput] = useState('');

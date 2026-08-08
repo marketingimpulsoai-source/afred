@@ -12,6 +12,7 @@ import { getAgentById, AGENT_TOOLS } from '../data/alfredData';
 import { findBusinessMatches } from '../data/businessAgents';
 import { searchMemory, saveMessage, saveTelemetry, getTotalQueriesProcessed } from './memory';
 import { getToolHandler } from '../skills/toolRegistry';
+import { detectDailyActivationRoutine, buildDailyRoutineRoutingDecision } from './dailyActivationRoutines';
 
 function estimateTokens(text: string): number {
   // Aproximación simple: ~4 caracteres por token (heurística estándar)
@@ -27,6 +28,72 @@ function estimateCostUsd(tokensUsed: number, model: string): number {
 export async function processUserRequest(req: ChatRequest): Promise<ChatResponse> {
   const startTime = Date.now();
   const { message, language, sessionId, history } = req;
+
+  // ── 0. Rutinas de activación diaria por comando explícito ──────────────
+  // El Jefe Maestro decide si es mañana/tarde/noche por la frase dicha;
+  // no depende del horario real del reloj.
+  const dailyRoutine = detectDailyActivationRoutine(message, language);
+  if (dailyRoutine) {
+    const responseId = 'msg_' + Date.now();
+    const nowIso = new Date().toLocaleTimeString();
+    const routingDecision = buildDailyRoutineRoutingDecision(message, dailyRoutine);
+    const latencyMs = Date.now() - startTime;
+    const responseText = enforcePersonalityRules(dailyRoutine.responseText, language);
+    const tokensUsed = estimateTokens(message + responseText);
+
+    saveMessage({
+      id: 'usr_' + Date.now(),
+      sessionId,
+      sender: 'user',
+      text: message,
+      timestamp: nowIso,
+      createdAt: startTime,
+      language,
+    });
+
+    saveMessage({
+      id: responseId,
+      sessionId,
+      sender: 'alfred',
+      agentName: 'ALFRED',
+      text: responseText,
+      timestamp: nowIso,
+      createdAt: Date.now(),
+      language,
+      routingDecision,
+      confidenceScore: 99,
+    });
+
+    saveTelemetry({
+      id: 'log_' + Date.now(),
+      timestamp: nowIso,
+      createdAt: Date.now(),
+      query: message,
+      assignedAgentId: 'alfred_core',
+      assignedAgentName: `ALFRED Core — ${dailyRoutine.label}`,
+      latencyMs,
+      tokensUsed,
+      confidence: 99,
+      status: 'SUCCESS',
+      policyCheck: 'POL-PRIVACY-01: OK · Daily routine command activation',
+      toolsInvokedCount: dailyRoutine.uiActions.length,
+      costEstimateUsd: 0,
+    });
+
+    return {
+      id: responseId,
+      text: responseText,
+      assignedAgent: null,
+      routingDecision,
+      toolCallTraces: [],
+      confidenceScore: 99,
+      latencyMs,
+      language,
+      memoryContextUsed: [],
+      uiActions: dailyRoutine.uiActions,
+      routineId: dailyRoutine.id,
+    };
+  }
 
   // ── 1. Recuperación de memoria semántica relevante (Minerva) ──────────
   const memoryHits = searchMemory(message, sessionId, 4);

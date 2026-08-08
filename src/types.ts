@@ -220,6 +220,17 @@ export interface ChatRequest {
   history?: Array<{ role: 'user' | 'model' | 'system'; text: string }>;
 }
 
+export interface UiAction {
+  type: 'open_url' | 'toast' | 'focus_tab' | 'audit_log';
+  label: string;
+  url?: string;
+  target?: 'youtube' | 'internal' | 'external';
+  volume?: 'moderate' | 'regular' | 'muted';
+  message?: string;
+  tabId?: TabId;
+  routineId?: string;
+}
+
 export interface ChatResponse {
   id: string;
   text: string;
@@ -230,4 +241,6 @@ export interface ChatResponse {
   latencyMs: number;
   language: Language;
   memoryContextUsed: Array<MemoryRecord | string>;
+  uiActions?: UiAction[];
+  routineId?: string;
 }

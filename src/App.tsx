@@ -11,7 +11,7 @@ import { ToastNotification, Toast } from './components/ToastNotification';
 import { MemoryVault, BiometricLogin, SettingsPanel, MobileHUD, ArchitectureDeepDive } from './components/EnhancedPanels';
 import { BusinessAgentsCommand } from './components/BusinessAgentsCommand';
 import { MediaCommandCenter } from './components/MediaCommandCenter';
-import { Language, SecurityLevel, CoreState, Message, SubAgent, TabId } from './types';
+import { Language, SecurityLevel, CoreState, Message, SubAgent, TabId, UiAction } from './types';
 import { SUB_AGENTS } from './data/alfredData';
 import { playAudioTTS, playAcknowledgmentChime } from './utils/audioTTS';
 import { timeBasedGreeting } from './alfred_core/personality';
@@ -43,6 +43,33 @@ export default function App() {
     setToasts(prev => [...prev, { id: Date.now().toString(), message, agentName }]);
   };
   const removeToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
+
+  const executeUiActions = useCallback((actions: UiAction[] = []) => {
+    actions.forEach((action) => {
+      if (action.type === 'toast' || action.type === 'audit_log') {
+        const prefix = action.type === 'audit_log' ? 'AUDIT · ' : '';
+        addToast(prefix + (action.message || action.label), 'ALFRED');
+        if (action.type === 'audit_log') {
+          const auditKey = 'alfred_daily_routine_audit';
+          const current = JSON.parse(localStorage.getItem(auditKey) || '[]') as Array<Record<string, unknown>>;
+          current.push({ at: new Date().toISOString(), ...action });
+          localStorage.setItem(auditKey, JSON.stringify(current.slice(-100)));
+        }
+      }
+      if (action.type === 'focus_tab' && action.tabId) {
+        setActiveTab(action.tabId);
+      }
+      if (action.type === 'open_url' && action.url) {
+        const opened = window.open(action.url, '_blank', 'noopener,noreferrer');
+        addToast(
+          opened
+            ? `${action.label}${action.volume ? ` · volumen ${action.volume}` : ''}`
+            : `El navegador bloqueó la apertura automática. Abra manualmente: ${action.url}`,
+          'ALFRED'
+        );
+      }
+    });
+  }, []);
 
   // ── Cargar historial persistente real desde SQLite al montar ──────────
   useEffect(() => {
@@ -132,6 +159,10 @@ export default function App() {
           language === 'es' ? `Delegando tarea a ${agentName}` : `Delegating task to ${agentName}`,
           agentName
         );
+      }
+
+      if (Array.isArray(data.uiActions) && data.uiActions.length > 0) {
+        executeUiActions(data.uiActions);
       }
 
       setMessages(prev => [...prev, alfredMsg]);

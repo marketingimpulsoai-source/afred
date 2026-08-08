@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ALFRED — YouTube Routine Player</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; background:#05070b; color:#dbfcff; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; background:radial-gradient(circle at 20% 10%, rgba(0,240,255,.18), transparent 28%), radial-gradient(circle at 80% 20%, rgba(138,43,226,.2), transparent 35%), #05070b; }
+    main { width:min(1180px, 94vw); }
+    .panel { border:1px solid rgba(0,240,255,.24); border-radius:14px; background:rgba(10,10,11,.72); box-shadow:0 30px 100px rgba(0,0,0,.45); padding:18px; }
+    h1 { margin:0 0 8px; font-family: Georgia, serif; letter-spacing:-.04em; color:white; }
+    p { color:rgba(219,252,255,.72); }
+    #player { width:100%; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000; }
+    .meta { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:14px; font-family:monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:#ffd700; }
+    a { color:#00f0ff; }
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <h1>ALFRED Routine Player</h1>
+    <p>Reproductor de rutina diaria con YouTube IFrame API. Alfred ajusta el volumen a nivel moderado cuando el navegador lo permite.</p>
+    <div id="player"></div>
+    <div class="meta">
+      <span id="status">Inicializando...</span>
+      <a id="original" target="_blank" rel="noopener noreferrer">Abrir en YouTube</a>
+    </div>
+  </main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const videoId = params.get('video') || 'rvLNvq5_-Fw';
+    const list = params.get('list') || '';
+    const index = Number(params.get('index') || '1');
+    const volume = Math.max(0, Math.min(100, Number(params.get('volume') || '40')));
+    const original = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}${list ? `&list=${encodeURIComponent(list)}` : ''}${index ? `&index=${index}` : ''}`;
+    document.getElementById('original').href = original;
+    document.getElementById('status').textContent = `Volumen objetivo: ${volume}/100 · Video: ${videoId}`;
+
+    let player;
+    window.onYouTubeIframeAPIReady = function () {
+      player = new YT.Player('player', {
+        videoId,
+        playerVars: { autoplay: 1, listType: list ? 'playlist' : undefined, list: list || undefined, index, rel: 0, modestbranding: 1 },
+        events: {
+          onReady: (event) => {
+            try {
+              event.target.setVolume(volume);
+              event.target.unMute();
+              event.target.playVideo();
+              document.getElementById('status').textContent = `Reproduciendo · volumen moderado ${volume}/100`;
+            } catch (err) {
+              document.getElementById('status').textContent = 'No pude ajustar volumen automáticamente; use el control del navegador.';
+            }
+          },
+          onError: () => {
+            document.getElementById('status').textContent = 'YouTube no permitió reproducir este video embebido; abra el enlace original.';
+          }
+        }
+      });
+    };
+  </script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>

@@ -18,6 +18,30 @@ export const ALFRED_MEMORY_PREFERENCES = {
       'https://www.youtube.com/watch?v=4a1cl9DZ4Vo&list=PLlQalC1rBuOgcIsxAEBf7aQjWduWaJhpt&index=6',
     ],
   },
+  dailyVoiceRoutines: {
+    sceneName: 'Rutinas diarias',
+    selectionMode: 'activated_by_phrase_then_selected_by_local_time',
+    volume: 'moderate',
+    morning: {
+      triggers: ['Alfred, hora de trabajar', 'Qué mundo, hora de trabajar', 'Llego papi, hora de trabajar'],
+      greeting: 'Buenos días, Jefe Maestro. Estoy a sus órdenes. Hoy es un día muy productivo, vamos a comenzar con un breve informe.',
+      youtubeUrl: 'https://www.youtube.com/watch?v=rvLNvq5_-Fw&list=PLlQalC1rBuOgcIsxAEBf7aQjWduWaJhpt&index=10',
+    },
+    afternoon: {
+      triggers: ['Buenas tardes, Jefe Maestro', 'Cualquier variante de saludo + hora de trabajar'],
+      greeting: 'Buenas tardes, Jefe Maestro. Estoy a sus órdenes y listo para continuar con las actividades pendientes o comenzar nuevas tareas. Recuerde que estoy para servirle en todo momento.',
+      youtubeUrl: 'https://www.youtube.com/watch?v=4a1cl9DZ4Vo&list=PLlQalC1rBuOgcIsxAEBf7aQjWduWaJhpt&index=5',
+    },
+    night: {
+      triggers: ['Buenas noches, Jefe Maestro'],
+      greeting: 'Buenas noches, Jefe Maestro. Estoy listo y a su servicio. ¿Cómo puedo ayudarle la noche de hoy?',
+    },
+    earlyMorning: {
+      triggers: ['Alfred, ¿qué hay de nuevo?', 'variantes configuradas por el usuario'],
+      greeting: 'Buenas noches/madrugada, Jefe Maestro. Prepararé un resumen rápido para que esté al día.',
+    },
+    guards: ['human confirmation before sending messages', 'human confirmation before publishing content', 'human confirmation before modifying data', 'human confirmation before financial operations', 'audit every executed action'],
+  },
   revenueCatMcp: {
     url: 'https://mcp.revenuecat.ai/mcp',
     auth: 'Bearer token with RevenueCat API v2 secret key, or OAuth when supported',

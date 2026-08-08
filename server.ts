@@ -64,7 +64,7 @@ app.get('/api/alfred-v3/status', (req, res) => {
     designSystem: 'Stitch Obsidian Command',
     handsFree: {
       mode: 'browser speech recognition + server chat + TTS fallback',
-      wakeCommands: ['alfred', 'hey alfred', 'oye alfred'],
+      wakeCommands: ['alfred', 'hey alfred', 'oye alfred', 'que mundo', 'llego papi', 'jefe maestro', 'hora de trabajar', 'que hay de nuevo'],
       browserPermissions: ['microphone', 'speechRecognition', 'audioOutput'],
     },
     apiPipelines: getAlfredV3ApiStatus(),

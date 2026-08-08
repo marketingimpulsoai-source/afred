@@ -367,6 +367,7 @@ Cuando Hermes/Alfred retome este proyecto, debe seguir este procedimiento:
 Prioridad alta:
 
 - Briefing Operativo V3 ya implementado: endpoint `/api/briefing`, tarjetas visuales CPU/RAM/Agents/Pipelines/Safety/Next y smoke test.
+- Rutinas Diarias de Alfred ya documentadas e integradas: `docs/rutinas-diarias-alfred.md`, activación por voz/texto, selección por hora local, YouTube moderado, auditoría local y confirmación humana antes de acciones externas.
 - Integrar Gemini native audio para latencia baja e interrupciones naturales.
 - Integración real Gemini Nano Banana image/design API.
 - Integración real MiniMax video API.

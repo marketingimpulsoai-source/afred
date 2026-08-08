@@ -35,6 +35,9 @@ async function main() {
   const memoryPrefs = await getJson('/api/memory-preferences');
   if (memoryPrefs.preferences?.taskLifecycle?.onStart !== 'Entendido, Jefe Maestro') throw new Error('Task lifecycle preference missing');
   if (!memoryPrefs.preferences?.startupMusic?.urls?.some(url => url.includes('rvLNvq5_-Fw'))) throw new Error('Startup music URL missing');
+  if (!memoryPrefs.preferences?.dailyVoiceRoutines?.morning?.triggers?.some(trigger => trigger.includes('Alfred'))) throw new Error('Daily voice routines missing');
+  if (!memoryPrefs.preferences?.dailyVoiceRoutines?.morning?.youtubeUrl?.includes('index=10')) throw new Error('Morning routine YouTube URL missing');
+  if (!memoryPrefs.preferences?.dailyVoiceRoutines?.afternoon?.youtubeUrl?.includes('index=5')) throw new Error('Afternoon routine YouTube URL missing');
   if (memoryPrefs.preferences?.revenueCatMcp?.url !== 'https://mcp.revenuecat.ai/mcp') throw new Error('RevenueCat MCP memory missing');
 
   const revenueCat = await getJson('/api/integrations/revenuecat');
@@ -101,6 +104,20 @@ async function main() {
     throw new Error(`Expected Fortress/Leonardo for security/API query, got ${security.assignedAgent?.nameES}`);
   }
 
+  const dailyRoutine = await postJson('/api/chat', {
+    message: 'Alfred, hora de trabajar',
+    language: 'es',
+    securityLevel: 'BALANCED',
+    sessionId: 'smoke_test_daily_routine',
+    history: []
+  });
+  if (!dailyRoutine.routineId) throw new Error('Daily routine was not activated');
+  if (!dailyRoutine.text.includes('Jefe Maestro')) throw new Error('Daily routine greeting missing Jefe Maestro');
+  if (!Array.isArray(dailyRoutine.uiActions) || !dailyRoutine.uiActions.some(action => action.type === 'audit_log')) throw new Error('Daily routine audit action missing');
+  if (['morning_work', 'afternoon_service'].includes(dailyRoutine.routineId) && !dailyRoutine.uiActions.some(action => action.type === 'open_url' && action.url?.includes('youtube-routine-player.html') && action.url?.includes('volume=40'))) {
+    throw new Error('Daily routine YouTube moderate-volume player action missing');
+  }
+
   const telemetry = await getJson('/api/telemetry');
   if (!telemetry.metrics || telemetry.metrics.activeAgentsCount !== 12) throw new Error('Telemetry active agent count is not 12');
 
@@ -113,6 +130,7 @@ async function main() {
   console.log(`Media Router: ${mediaRouter.mediaRouter.primaryProvider} / ${mediaRouter.mediaRouter.agents.length} media agents / ${mediaRouter.mediaRouter.seedanceTools.length} Seedance tools`);
   console.log(`ALFRED V3: ${v3.designSystem} / ${v3.apiPipelines.length} API pipelines / wake ${v3.handsFree.wakeCommands[0]}`);
   console.log(`Briefing: ${briefing.briefing.alfred.version} / RAM ${briefing.briefing.localSystem.memory.usedPct}% / next ${briefing.briefing.nextImprovements.length}`);
+  console.log(`Daily routines: ${dailyRoutine.routineId} / ${dailyRoutine.uiActions.length} actions`);
   console.log(`Business routing: ${matchedIds.join(', ')}`);
   console.log(`TTS provider: ${tts.provider || 'cloud'} / preview audio OK`);
   console.log(`Routing architecture: ${architecture.assignedAgent.nameES}`);
