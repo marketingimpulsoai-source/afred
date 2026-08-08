@@ -242,7 +242,7 @@ export default function App() {
 
       <footer className="v2-footer relative z-10">
         <div className="max-w-[1880px] mx-auto px-4 flex flex-wrap items-center justify-between gap-2">
-          <span>ALFRED DIGITAL BUTLER v3.0</span>
+          <p>ALFRED DIGITAL BUTLER V3.5</p>
           <span className="text-cyan-300/80">
             {language === 'es' ? 'MANOS LIBRES · MINIMAX · GEMINI NANO BANANA · STITCH MCP' : 'HANDS-FREE · MINIMAX · GEMINI NANO BANANA · STITCH MCP'}
           </span>

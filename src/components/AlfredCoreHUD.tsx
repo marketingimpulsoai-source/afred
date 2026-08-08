@@ -65,6 +65,19 @@ const QUICK_EN = [
 
 const WAKE_WORDS = ['alfred', 'hey alfred', 'oye alfred', 'que mundo', 'qué mundo', 'llego papi', 'jefe maestro'];
 
+const STITCH_FUSION_PACKS = [
+  { id: '00', name: 'Aether-Chassis HUD', source: 'base zip', effect: 'glass panel · chamfer · scanline' },
+  { id: '01', name: 'Command Center Prime', source: '(1)', effect: 'data grid · JetBrains Mono · Playfair' },
+  { id: '02', name: 'Reactive Nexus Core', source: '(2)', effect: 'cyan pulse · voice spectrum' },
+  { id: '03', name: 'Agent Operations Rail', source: '(3)', effect: 'modular cards · telemetry lanes' },
+  { id: '04', name: 'Fortress Tactical Core', source: '(4)', effect: 'flicker · security amber' },
+  { id: '05', name: 'Creative Forge Deck', source: '(5)', effect: 'violet glow · media staging' },
+  { id: '06', name: '12-Agent HUD Library', source: '(6)', effect: 'Thomas · Ada · Leonardo · Fortress · Minerva' },
+  { id: '07', name: 'Shader Backplane', source: '(7)', effect: 'WebGL-inspired depth layer' },
+  { id: '08', name: 'Minerva Memory Core', source: '(8)', effect: 'memory lattice · three.js orbital motif' },
+  { id: '09', name: 'Quantum Link Mesh', source: '(9)', effect: 'shader mesh · particle halo' },
+];
+
 export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, onSendMessage, subAgents, securityLevel, audioMuted }) => {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -255,12 +268,12 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
     <div className="v3-command-bridge">
       <section className="v3-hero-bridge">
         <div className="v3-hero-copy">
-          <div className="v3-eyebrow"><Sparkles size={14} /> ALFRED CORP V3 / STITCH OBSIDIAN COMMAND</div>
-          <h2>{language === 'es' ? 'Cabina manos libres para conversación IA en tiempo real' : 'Hands-free cockpit for real-time AI conversation'}</h2>
+          <div className="v3-eyebrow"><Sparkles size={14} /> ALFRED CORP V3.5 / STITCH CYBERPUNK NEXUS</div>
+          <h2>{language === 'es' ? 'Centro de mando cyberpunk con todos los diseños Stitch fusionados' : 'Cyberpunk command center with every Stitch design fused'}</h2>
           <p>
             {language === 'es'
-              ? 'Controle Alfred por voz, botones accesibles, micrófono del browser, MiniMax API, Gemini Nano Banana, Stitch MCP, Seedance y agentes de negocio desde una interfaz futurista premium.'
-              : 'Control Alfred by voice, accessible buttons, browser microphone, MiniMax API, Gemini Nano Banana, Stitch MCP, Seedance, and business agents from a premium futuristic interface.'}
+              ? 'Nueva versión mejorada inspirada en alfred-ai-butle.ai.studio: estado CORE online, enlace cuántico, seguridad balanceada, audio en tiempo real, 12 subagentes y una matriz visual que incorpora los diez paquetes Stitch importados.'
+              : 'Improved release inspired by alfred-ai-butle.ai.studio: CORE online status, quantum link, balanced security, real-time audio, 12 sub-agents, and a visual matrix incorporating the ten imported Stitch packs.'}
           </p>
           <div className="v3-quick-grid">
             {quickPrompts.map(prompt => (
@@ -272,6 +285,17 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
         </div>
 
         <div className="v3-permission-stage">
+          <div className="v35-shader-backplane" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="v35-ai-studio-readout" aria-label="AI Studio system status">
+            <b>SYSTEM STATUS</b>
+            <span>CORE: ONLINE</span>
+            <span>LATENCY: 12ms</span>
+            <span>QUANTUM LINK: ESTABLISHED</span>
+          </div>
           <button
             type="button"
             onClick={toggleHandsFree}
@@ -299,11 +323,34 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
         <StatusCard icon={<Activity />} label="Latency fabric" value="12ms" tone="cyan" />
         <StatusCard icon={<Clapperboard />} label="MiniMax API" value={apiPipelines.find(p => p.id === 'minimax')?.statusLabel || 'awaiting local secret'} tone="violet" />
         <StatusCard icon={<Palette />} label="Gemini Nano Banana" value={apiPipelines.find(p => p.id === 'gemini_nano_banana')?.statusLabel || 'awaiting local secret'} tone="gold" />
-        <StatusCard icon={<Wand2 />} label="Stitch MCP" value="design generated" tone="emerald" />
+        <StatusCard icon={<Wand2 />} label="Stitch MCP" value="10 packs fused" tone="emerald" />
         <StatusCard icon={<Aperture />} label="Seedance 2.5" value="primary video" tone="cyan" />
         <StatusCard icon={<BadgeDollarSign />} label="RevenueCat" value="monetization ready" tone="gold" />
         <StatusCard icon={<Bot />} label="Agents" value={`${activeCount}/12 base + 16 business`} tone="emerald" />
         <StatusCard icon={<Cpu />} label="Security" value={securityLevel} tone="violet" />
+      </section>
+
+      <section className="v35-fusion-panel" aria-label={language === 'es' ? 'Matriz de diseños Stitch fusionados' : 'Fused Stitch design matrix'}>
+        <div className="v35-fusion-head">
+          <div>
+            <div className="v3-eyebrow small"><Network size={13} /> STITCH FUSION MATRIX</div>
+            <h3>{language === 'es' ? 'Todos los diseños Stitch incorporados en ALFRED CORP V3.5' : 'Every Stitch design incorporated into ALFRED CORP V3.5'}</h3>
+            <p>{language === 'es' ? 'La cabina combina el diseño público ai.studio con Aether-Chassis HUD, Nexus Core, librería de 12 agentes, backplanes shader y motivos Three.js, implementados como CSS/React seguros.' : 'The cockpit combines the public ai.studio design with Aether-Chassis HUD, Nexus Core, the 12-agent library, shader backplanes, and Three.js motifs implemented as safe CSS/React.'}</p>
+          </div>
+          <div className="v35-fusion-badge"><Sparkles size={14} /> 10 ZIP PACKS</div>
+        </div>
+        <div className="v35-fusion-grid">
+          {STITCH_FUSION_PACKS.map(pack => (
+            <article key={pack.id} className="v35-fusion-card">
+              <div className="v35-pack-id">#{pack.id}</div>
+              <div>
+                <b>{pack.name}</b>
+                <span>{pack.source}</span>
+                <small>{pack.effect}</small>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
 
       {briefing && (
@@ -394,8 +441,8 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder={language === 'es' ? 'Ordene algo a Alfred Corp V3...' : 'Command Alfred Corp V3...'}
-                aria-label={language === 'es' ? 'Comando para Alfred Corp V3' : 'Command for Alfred Corp V3'}
+                placeholder={language === 'es' ? 'Ordene algo a Alfred Corp V3.5...' : 'Command Alfred Corp V3.5...'}
+                aria-label={language === 'es' ? 'Comando para Alfred Corp V3.5' : 'Command for Alfred Corp V3.5'}
               />
               <button onClick={() => handleSend()} className="v3-send-button" data-voice-command="execute">
                 <Send size={16} /> {language === 'es' ? 'EJECUTAR' : 'EXECUTE'}
@@ -407,10 +454,10 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
         <aside className="v3-side-console">
           <div className="v3-mini-panel">
             <div className="v3-eyebrow small"><Power size={13} /> Hands-free controls</div>
-            <Detail label="Wake command" value="Alfred / Hey Alfred / Oye Alfred" />
+            <Detail label="Wake command" value="Alfred / Qué mundo / Llego papi" />
             <Detail label="Browser mic" value={permissionState} />
             <Detail label="Speech mode" value={handsFree ? 'continuous real-time' : 'push-to-talk'} />
-            <Detail label="Buttons" value="voice-accessible" />
+            <Detail label="Stitch packs" value="10 fused" />
           </div>
           <div className="v3-mini-panel">
             <div className="v3-eyebrow small"><Radio size={13} /> Voice system</div>
@@ -419,7 +466,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
           </div>
           <div className="v3-mini-panel">
             <div className="v3-eyebrow small"><Keyboard size={13} /> Run from correct folder</div>
-            <code>cd "$HOME/Desktop/alfred"</code>
+            <code>cd "$HOME/Desktop/afred"</code>
             <code>npm run lint && npm run build && npm run test</code>
           </div>
         </aside>

@@ -51,12 +51,15 @@ async function main() {
   if (!mediaRouter.mediaRouter?.seedanceTools?.includes('seedance_text_to_video')) throw new Error('Seedance tools missing');
 
   const v3 = await getJson('/api/alfred-v3/status');
-  if (v3.version !== 'ALFRED CORP V3') throw new Error('ALFRED V3 status missing');
-  if (!Array.isArray(v3.apiPipelines) || v3.apiPipelines.length < 4) throw new Error('ALFRED V3 API pipelines missing');
-  if (!v3.handsFree?.wakeCommands?.includes('alfred')) throw new Error('ALFRED V3 wake command missing');
+  if (v3.version !== 'ALFRED CORP V3.5') throw new Error('ALFRED V3.5 status missing');
+  if (v3.stitchFusion?.importedZipPacks !== 10) throw new Error('Stitch fusion pack count missing');
+  if (!v3.stitchFusion?.effects?.includes('shader-backplane')) throw new Error('Stitch shader effect missing');
+  if (!Array.isArray(v3.apiPipelines) || v3.apiPipelines.length < 4) throw new Error('ALFRED V3.5 API pipelines missing');
+  if (!v3.handsFree?.wakeCommands?.includes('alfred')) throw new Error('ALFRED V3.5 wake command missing');
 
   const briefing = await getJson('/api/briefing');
-  if (briefing.briefing?.alfred?.version !== 'ALFRED CORP V3') throw new Error('Operational briefing version missing');
+  if (briefing.briefing?.alfred?.version !== 'ALFRED CORP V3.5') throw new Error('Operational briefing version missing');
+  if (briefing.briefing?.alfred?.stitchFusion?.importedZipPacks !== 10) throw new Error('Operational briefing Stitch fusion missing');
   if (briefing.briefing?.alfred?.activeBaseAgents !== 12) throw new Error('Operational briefing active agents mismatch');
   if (briefing.briefing?.safety?.secretsInCode !== false) throw new Error('Operational briefing secret guard failed');
 
@@ -128,7 +131,7 @@ async function main() {
   console.log(`Memory preferences: ${memoryPrefs.preferences.taskLifecycle.onStart} / ${memoryPrefs.preferences.startupMusic.urls.length} music URLs`);
   console.log(`RevenueCat MCP: ${revenueCat.revenueCat.configured ? 'configured' : 'awaiting local secret'} / ${revenueCat.revenueCat.capabilities.length} capability groups`);
   console.log(`Media Router: ${mediaRouter.mediaRouter.primaryProvider} / ${mediaRouter.mediaRouter.agents.length} media agents / ${mediaRouter.mediaRouter.seedanceTools.length} Seedance tools`);
-  console.log(`ALFRED V3: ${v3.designSystem} / ${v3.apiPipelines.length} API pipelines / wake ${v3.handsFree.wakeCommands[0]}`);
+  console.log(`ALFRED V3.5: ${v3.designSystem} / ${v3.stitchFusion.importedZipPacks} Stitch packs / ${v3.apiPipelines.length} API pipelines / wake ${v3.handsFree.wakeCommands[0]}`);
   console.log(`Briefing: ${briefing.briefing.alfred.version} / RAM ${briefing.briefing.localSystem.memory.usedPct}% / next ${briefing.briefing.nextImprovements.length}`);
   console.log(`Daily routines: ${dailyRoutine.routineId} / ${dailyRoutine.uiActions.length} actions`);
   console.log(`Business routing: ${matchedIds.join(', ')}`);

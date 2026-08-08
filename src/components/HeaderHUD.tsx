@@ -16,7 +16,7 @@ interface Props {
 }
 
 const TABS_ES: Record<TabId, string> = {
-  core: 'CORE V3',
+  core: 'CORE V3.5',
   agents: 'AGENTES',
   business: 'NEGOCIOS',
   media: 'MEDIA AI',
@@ -32,7 +32,7 @@ const TABS_ES: Record<TabId, string> = {
   memory: 'MEMORIA',
 };
 const TABS_EN: Record<TabId, string> = {
-  core: 'CORE V3',
+  core: 'CORE V3.5',
   agents: 'AGENTS',
   business: 'BUSINESS',
   media: 'MEDIA AI',
@@ -61,7 +61,7 @@ export const HeaderHUD: React.FC<Props> = ({
       <div className="v3-header-shell max-w-[1920px] mx-auto px-4 py-4">
         <div className="flex flex-col 2xl:flex-row gap-4 2xl:items-center 2xl:justify-between">
           <div className="flex items-center gap-4 min-w-0">
-            <div className="v3-logo-orb" aria-label="ALFRED CORP V3">
+            <div className="v3-logo-orb" aria-label="ALFRED CORP V3.5">
               <div className="v3-logo-ring one" />
               <div className="v3-logo-ring two" />
               <span>A</span>
@@ -69,7 +69,7 @@ export const HeaderHUD: React.FC<Props> = ({
             <div className="min-w-0">
               <div className="flex flex-wrap items-end gap-3">
                 <h1 className="v3-brand-title">
-                  ALFRED <span>CORP V3</span>
+                  ALFRED <span>CORP V3.5</span>
                 </h1>
                 <div className="v3-version-pill"><Sparkles size={12} /> OBSIDIAN COMMAND</div>
                 <div className="v3-version-pill gold"><Mic2 size={12} /> REAL-TIME VOICE</div>

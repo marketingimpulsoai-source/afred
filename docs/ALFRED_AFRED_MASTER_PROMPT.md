@@ -367,6 +367,7 @@ Cuando Hermes/Alfred retome este proyecto, debe seguir este procedimiento:
 Prioridad alta:
 
 - Briefing Operativo V3 ya implementado: endpoint `/api/briefing`, tarjetas visuales CPU/RAM/Agents/Pipelines/Safety/Next y smoke test.
+- ALFRED CORP V3.5 ya implementado: `Stitch Cyberpunk Nexus · Aether-Chassis Fusion`, integración de los 10 ZIPs Stitch, referencia `https://alfred-ai-butle.ai.studio/`, scanline, data-grid, glass/chamfer panels, shader backplane, flicker, waveform y matriz visual `STITCH FUSION MATRIX`.
 - Rutinas Diarias de Alfred ya documentadas e integradas: `docs/rutinas-diarias-alfred.md`, activación por voz/texto, selección por hora local, YouTube moderado, auditoría local y confirmación humana antes de acciones externas.
 - Integrar Gemini native audio para latencia baja e interrupciones naturales.
 - Integración real Gemini Nano Banana image/design API.

@@ -60,8 +60,13 @@ app.get('/api/memory-preferences', (req, res) => {
 
 app.get('/api/alfred-v3/status', (req, res) => {
   res.json({
-    version: 'ALFRED CORP V3',
-    designSystem: 'Stitch Obsidian Command',
+    version: 'ALFRED CORP V3.5',
+    designSystem: 'Stitch Cyberpunk Nexus · Aether-Chassis Fusion',
+    stitchFusion: {
+      importedZipPacks: 10,
+      referenceUrl: 'https://alfred-ai-butle.ai.studio/',
+      effects: ['glass-panel', 'chamfered-panels', 'data-grid', 'scanline', 'pulse-glow', 'audio-waveform', 'flicker', 'shader-backplane', 'threejs-orbital-motif'],
+    },
     handsFree: {
       mode: 'browser speech recognition + server chat + TTS fallback',
       wakeCommands: ['alfred', 'hey alfred', 'oye alfred', 'que mundo', 'llego papi', 'jefe maestro', 'hora de trabajar', 'que hay de nuevo'],

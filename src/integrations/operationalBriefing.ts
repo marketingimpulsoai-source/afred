@@ -40,8 +40,12 @@ export function getOperationalBriefing() {
       },
     },
     alfred: {
-      version: 'ALFRED CORP V3',
-      designSystem: 'Stitch Obsidian Command',
+      version: 'ALFRED CORP V3.5',
+      designSystem: 'Stitch Cyberpunk Nexus · Aether-Chassis Fusion',
+      stitchFusion: {
+        importedZipPacks: 10,
+        referenceUrl: 'https://alfred-ai-butle.ai.studio/',
+      },
       baseAgents: SUB_AGENTS.length,
       activeBaseAgents: SUB_AGENTS.filter(a => a.status === 'ACTIVE').length,
       businessAgents: BUSINESS_AGENTS.length,

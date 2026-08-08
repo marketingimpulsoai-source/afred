@@ -1,4 +1,4 @@
-# ALFRED — Mayordomo Digital Bilingüe / AI Butler CORP V3
+# ALFRED — Mayordomo Digital Bilingüe / AI Butler CORP V3.5
 
 ALFRED es un asistente de IA estilo JARVIS, bilingüe en español e inglés, con personalidad de mayordomo británico formal y una arquitectura de 12 sub-agentes especializados.
 
@@ -17,7 +17,7 @@ Implementación funcional en React + Vite + Express + TypeScript, ahora alineada
 - Memoria persistente real con SQLite.
 - Telemetría persistente.
 - TTS masculino bilingüe: ElevenLabs Rupert/Alfred (`89gcX1AeMGgcsN8ypHLu`, `eleven_v3_conversational`) → Gemini TTS → Web Speech API masculino local. Preview en `public/audio/alfred-rupert-preview.mp3`.
-- **Panel ALFRED CORP V3**: command bridge futurista basado en Stitch MCP Obsidian Command, con orbe de permisos de micrófono, modo manos libres, live transcript, botones accesibles por voz, MiniMax API, Gemini Nano Banana, Stitch MCP y Seedance 2.5.
+- **Panel ALFRED CORP V3.5**: Stitch Cyberpunk Nexus Fusion con los 10 ZIPs de Stitch importados, referencia visual `https://alfred-ai-butle.ai.studio/`, glass/chamfer panels, scanline, data-grid, shader backplane, flicker, waveform, Three.js orbital motif y matriz `STITCH FUSION MATRIX`.
 - Personalidad estricta: siempre trata al usuario como **Jefe Maestro**; saludo por horario (`Buenos días/tardes/noches, jefe maestro`) y protocolo de tareas `Entendido, Jefe Maestro` al iniciar/finalizar.
 - Secciones nuevas: Login Biométrico Fortress, Ajustes, HUD Móvil, Memoria Minerva, Arquitectura Operativa, Red Neuronal y **Negocios + Clientes**.
 - **Business Command Layer**: 16 especialistas de negocio basados en los documentos del portafolio (`S1`, `SL1`, `A8`, `B3`, `A1`, `A4`, `RE1`, `A5`, `A6`, `A7`, `A9`, `A10`, `A11`, etc.), fábrica universal de páginas/videos para todo tipo de clientes, playbooks, guardrails y endpoints `/api/business-agents` + `/api/business-agents/route`.
@@ -117,6 +117,7 @@ Documentación extensa:
 - `docs/VOICE_ALFRED_RUPERT.md`
 - `docs/REVENUECAT_MCP.md`
 - `docs/MEDIA_ROUTER_SEEDANCE_2_5.md`
+- `docs/STITCH_CYBERPUNK_FUSION_V35.md`
 - `docs/ALFRED_CORP_V3_HANDS_FREE.md`
 - `docs/rutinas-diarias-alfred.md`
 - `docs/OPERATIONAL_BRIEFING_V3.md`
