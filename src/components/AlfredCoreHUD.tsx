@@ -3,7 +3,7 @@ import {
   Mic, Send, Loader2, ChevronDown, ChevronUp, Activity, Radio, ShieldCheck,
   Sparkles, BrainCircuit, Aperture, Waves, Network, Shield, Zap, Mic2, Keyboard,
   RadioTower, Wand2, Palette, Clapperboard, BadgeDollarSign, Bot, Cpu, Power,
-  Gauge, HardDrive, ServerCog, Clock3, CheckCircle2,
+  Gauge, HardDrive, ServerCog, Clock3, CheckCircle2, CalendarDays, Download,
 } from 'lucide-react';
 import { Language, CoreState, Message, SubAgent, SecurityLevel } from '../types';
 import { AlfredWorldOrb3D } from './AlfredWorldOrb3D';
@@ -28,6 +28,7 @@ type MicDiagnostic = {
   deviceCount: number;
   message: string;
 };
+type ConversationDay = { day: string; messageCount: number; sessionCount: number };
 type OperationalBriefing = {
   generatedAt: string;
   mission: string;
@@ -126,6 +127,10 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
   const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({});
   const [briefing, setBriefing] = useState<OperationalBriefing | null>(null);
   const [micDiagnostic, setMicDiagnostic] = useState<MicDiagnostic | null>(null);
+  const [conversationDays, setConversationDays] = useState<ConversationDay[]>([]);
+  const [selectedHistoryDay, setSelectedHistoryDay] = useState<string>('live');
+  const [dayMessages, setDayMessages] = useState<Message[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const handsFreeRef = useRef(false);
@@ -137,7 +142,27 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, dayMessages, selectedHistoryDay]);
+
+  useEffect(() => {
+    fetch('/api/history-days?limit=365')
+      .then(res => res.json())
+      .then(data => setConversationDays(Array.isArray(data.days) ? data.days : []))
+      .catch(() => setConversationDays([]));
+  }, [messages.length]);
+
+  useEffect(() => {
+    if (selectedHistoryDay === 'live') {
+      setDayMessages([]);
+      return;
+    }
+    setHistoryLoading(true);
+    fetch(`/api/history-day/${selectedHistoryDay}?limit=50000`)
+      .then(res => res.json())
+      .then(data => setDayMessages(Array.isArray(data.messages) ? data.messages : []))
+      .catch(() => setDayMessages([]))
+      .finally(() => setHistoryLoading(false));
+  }, [selectedHistoryDay]);
 
   useEffect(() => {
     fetch('/api/briefing')
@@ -173,6 +198,8 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
 
   const activeCount = subAgents.filter(a => a.status === 'ACTIVE').length;
   const quickPrompts = language === 'es' ? QUICK_ES : QUICK_EN;
+  const visibleMessages = selectedHistoryDay === 'live' ? messages : dayMessages;
+  const selectedDayCount = selectedHistoryDay === 'live' ? messages.length : dayMessages.length;
 
   const handleSend = useCallback((override?: string) => {
     const text = (override ?? input).trim();
@@ -483,6 +510,128 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
         </div>
       </section>
 
+      <section className="v3-live-grid">
+        <div className="v3-chat-shell">
+          <div className="v3-chat-header">
+            <div>
+              <div className="v3-eyebrow small">REAL-TIME LIVE CONVERSATION</div>
+              <h3>{language === 'es' ? 'Canal operativo con voz, texto e historial diario' : 'Operational channel with voice, text and daily history'}</h3>
+              <p className="v3-history-count">{selectedHistoryDay === 'live' ? 'Vista en vivo' : `Día ${selectedHistoryDay}`} · {selectedDayCount} mensajes guardados</p>
+            </div>
+            <div className="v3-history-tools" aria-label="Filtro diario de conversación">
+              <label>
+                <CalendarDays size={14} />
+                <select value={selectedHistoryDay} onChange={(event) => setSelectedHistoryDay(event.target.value)}>
+                  <option value="live">Conversación en vivo</option>
+                  {conversationDays.map(day => (
+                    <option key={day.day} value={day.day}>{day.day} · {day.messageCount} mensajes</option>
+                  ))}
+                </select>
+              </label>
+              {selectedHistoryDay !== 'live' && (
+                <a className="v3-history-download" href={`/api/history-day/${selectedHistoryDay}.pdf`} target="_blank" rel="noreferrer">
+                  <Download size={14} /> PDF
+                </a>
+              )}
+              <div className="v3-signal"><Waves size={15} /> {audioMuted ? 'VOICE MUTED' : 'VOICE READY'}</div>
+            </div>
+          </div>
+
+          <div ref={scrollRef} className="v3-message-stream">
+            {historyLoading && (
+              <div className="v3-thinking-line">
+                <Loader2 size={13} className="animate-spin" /> Cargando conversación completa del día...
+              </div>
+            )}
+            {!historyLoading && visibleMessages.length === 0 && (
+              <div className="v3-thinking-line">
+                <CalendarDays size={13} /> No hay conversación guardada para este día.
+              </div>
+            )}
+            {visibleMessages.map((msg) => {
+              const hasReasoning = !!msg.routingDecision || !!msg.confidenceScore || !!msg.toolCalls?.length;
+              const expanded = expandedReasoning[msg.id];
+              return (
+                <div key={msg.id} className={`v3-message-row ${msg.sender === 'user' ? 'user' : 'alfred'}`}>
+                  <article className="v3-message-bubble">
+                    <div className="v3-message-meta">
+                      <span>{msg.sender === 'user' ? 'JEFE MAESTRO' : (msg.agentName || 'ALFRED CORE')}</span>
+                      <time>{msg.timestamp}</time>
+                    </div>
+                    <p>{msg.text}</p>
+                    {msg.sender !== 'user' && hasReasoning && (
+                      <div className="v3-message-actions compact">
+                        <button onClick={() => setExpandedReasoning(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))} data-voice-command="show reasoning">
+                          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {language === 'es' ? 'Detalles técnicos' : 'Technical details'}
+                        </button>
+                      </div>
+                    )}
+                    {expanded && msg.routingDecision && (
+                      <div className="v3-reasoning-panel">
+                        <div><b>METHOD:</b> {msg.routingDecision.method}</div>
+                        <div><b>AGENT:</b> {msg.routingDecision.chosenAgentName}</div>
+                        <div><b>CONFIDENCE:</b> {msg.routingDecision.confidence}%</div>
+                        <div><b>REASON:</b> {language === 'es' ? msg.routingDecision.reasoningES : msg.routingDecision.reasoningEN}</div>
+                      </div>
+                    )}
+                  </article>
+                </div>
+              );
+            })}
+            {selectedHistoryDay === 'live' && (coreState === 'PROCESSING' || coreState === 'ROUTING') && (
+              <div className="v3-thinking-line">
+                <Loader2 size={13} className="animate-spin" />
+                {language === 'es' ? 'Alfred está seleccionando el mejor agente...' : 'Alfred is selecting the best agent...'}
+              </div>
+            )}
+          </div>
+
+          <div className="v3-composer">
+            <AudioSpectrum active={coreState === 'SPEAKING' || isListening} />
+            <div className="v3-live-transcript">
+              <RadioTower size={13} />
+              <span>{liveTranscript || lastVoiceCommand || (language === 'es' ? 'Diga “Buenos días Alfred”, “Buenas tardes Alfred” o “Buenas noches Alfred”.' : 'Say “Good morning Alfred”, “Good afternoon Alfred”, or “Good evening Alfred”.')}</span>
+            </div>
+            <div className="v3-composer-row">
+              <button onClick={toggleMic} aria-label={language === 'es' ? 'Activar micrófono' : 'Activate microphone'} className={`v3-mic-button ${isListening ? 'listening' : ''}`} data-voice-command="microphone">
+                <Mic size={18} />
+              </button>
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder={language === 'es' ? 'Ordene algo a Alfred Corp V3.5...' : 'Command Alfred Corp V3.5...'}
+                aria-label={language === 'es' ? 'Comando para Alfred Corp V3.5' : 'Command for Alfred Corp V3.5'}
+              />
+              <button onClick={() => handleSend()} className="v3-send-button" data-voice-command="execute">
+                <Send size={16} /> {language === 'es' ? 'EJECUTAR' : 'EXECUTE'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <aside className="v3-side-console">
+          <div className="v3-mini-panel">
+            <div className="v3-eyebrow small"><Power size={13} /> Hands-free controls</div>
+            <Detail label="Wake command" value="Buenos días/tardes/noches Alfred" />
+            <Detail label="Browser mic" value={permissionState} />
+            <Detail label="Speech mode" value={handsFree ? 'continuous real-time' : 'push-to-talk'} />
+            <Detail label="Alfred modules" value="10 activos" />
+          </div>
+          <div className="v3-mini-panel">
+            <div className="v3-eyebrow small"><Radio size={13} /> Voice system</div>
+            <AudioSpectrum active={coreState === 'SPEAKING' || isListening} tall />
+            <p>{coreStateLabel}</p>
+          </div>
+          <div className="v3-mini-panel">
+            <div className="v3-eyebrow small"><Keyboard size={13} /> Run from correct folder</div>
+            <code>cd "$HOME/Desktop/afred"</code>
+            <code>npm run lint && npm run build && npm run test</code>
+          </div>
+        </aside>
+      </section>
+
+
       <section className="v3-pipeline-grid">
         <StatusCard icon={<Activity />} label="Alfred Core" value="online" tone="cyan" />
         <StatusCard icon={<Clapperboard />} label="Voice Butler" value="real-time ready" tone="violet" />
@@ -537,100 +686,6 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
           </div>
         </section>
       )}
-
-      <section className="v3-live-grid">
-        <div className="v3-chat-shell">
-          <div className="v3-chat-header">
-            <div>
-              <div className="v3-eyebrow small">REAL-TIME LIVE CONVERSATION</div>
-              <h3>{language === 'es' ? 'Canal operativo con acceso por voz y texto' : 'Operational channel with voice and text access'}</h3>
-            </div>
-            <div className="v3-signal"><Waves size={15} /> {audioMuted ? 'VOICE MUTED' : 'VOICE READY'}</div>
-          </div>
-
-          <div ref={scrollRef} className="v3-message-stream">
-            {messages.map((msg) => {
-              const hasReasoning = !!msg.routingDecision || !!msg.confidenceScore || !!msg.toolCalls?.length;
-              const expanded = expandedReasoning[msg.id];
-              return (
-                <div key={msg.id} className={`v3-message-row ${msg.sender === 'user' ? 'user' : 'alfred'}`}>
-                  <article className="v3-message-bubble">
-                    <div className="v3-message-meta">
-                      <span>{msg.sender === 'user' ? 'JEFE MAESTRO' : (msg.agentName || 'ALFRED CORE')}</span>
-                      <time>{msg.timestamp}</time>
-                    </div>
-                    <p>{msg.text}</p>
-                    {msg.sender !== 'user' && hasReasoning && (
-                      <div className="v3-message-actions compact">
-                        <button onClick={() => setExpandedReasoning(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))} data-voice-command="show reasoning">
-                          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {language === 'es' ? 'Detalles técnicos' : 'Technical details'}
-                        </button>
-                      </div>
-                    )}
-                    {expanded && msg.routingDecision && (
-                      <div className="v3-reasoning-panel">
-                        <div><b>METHOD:</b> {msg.routingDecision.method}</div>
-                        <div><b>AGENT:</b> {msg.routingDecision.chosenAgentName}</div>
-                        <div><b>CONFIDENCE:</b> {msg.routingDecision.confidence}%</div>
-                        <div><b>REASON:</b> {language === 'es' ? msg.routingDecision.reasoningES : msg.routingDecision.reasoningEN}</div>
-                      </div>
-                    )}
-                  </article>
-                </div>
-              );
-            })}
-            {(coreState === 'PROCESSING' || coreState === 'ROUTING') && (
-              <div className="v3-thinking-line">
-                <Loader2 size={13} className="animate-spin" />
-                {language === 'es' ? 'Alfred está seleccionando el mejor agente...' : 'Alfred is selecting the best agent...'}
-              </div>
-            )}
-          </div>
-
-          <div className="v3-composer">
-            <AudioSpectrum active={coreState === 'SPEAKING' || isListening} />
-            <div className="v3-live-transcript">
-              <RadioTower size={13} />
-              <span>{liveTranscript || lastVoiceCommand || (language === 'es' ? 'Diga “Buenos días Alfred”, “Buenas tardes Alfred” o “Buenas noches Alfred”.' : 'Say “Good morning Alfred”, “Good afternoon Alfred”, or “Good evening Alfred”.')}</span>
-            </div>
-            <div className="v3-composer-row">
-              <button onClick={toggleMic} aria-label={language === 'es' ? 'Activar micrófono' : 'Activate microphone'} className={`v3-mic-button ${isListening ? 'listening' : ''}`} data-voice-command="microphone">
-                <Mic size={18} />
-              </button>
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder={language === 'es' ? 'Ordene algo a Alfred Corp V3.5...' : 'Command Alfred Corp V3.5...'}
-                aria-label={language === 'es' ? 'Comando para Alfred Corp V3.5' : 'Command for Alfred Corp V3.5'}
-              />
-              <button onClick={() => handleSend()} className="v3-send-button" data-voice-command="execute">
-                <Send size={16} /> {language === 'es' ? 'EJECUTAR' : 'EXECUTE'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <aside className="v3-side-console">
-          <div className="v3-mini-panel">
-            <div className="v3-eyebrow small"><Power size={13} /> Hands-free controls</div>
-            <Detail label="Wake command" value="Buenos días/tardes/noches Alfred" />
-            <Detail label="Browser mic" value={permissionState} />
-            <Detail label="Speech mode" value={handsFree ? 'continuous real-time' : 'push-to-talk'} />
-            <Detail label="Alfred modules" value="10 activos" />
-          </div>
-          <div className="v3-mini-panel">
-            <div className="v3-eyebrow small"><Radio size={13} /> Voice system</div>
-            <AudioSpectrum active={coreState === 'SPEAKING' || isListening} tall />
-            <p>{coreStateLabel}</p>
-          </div>
-          <div className="v3-mini-panel">
-            <div className="v3-eyebrow small"><Keyboard size={13} /> Run from correct folder</div>
-            <code>cd "$HOME/Desktop/afred"</code>
-            <code>npm run lint && npm run build && npm run test</code>
-          </div>
-        </aside>
-      </section>
 
       {embeddedMediaUrl && (
         <section className="v3-media-deck" aria-label="Reproductor de música de Alfred">

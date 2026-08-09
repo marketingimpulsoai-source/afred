@@ -156,14 +156,15 @@ export function saveMessage(msg: Message): void {
   });
 }
 
-export function getMessagesByDay(day: string, sessionId?: string, limit = 1000): Message[] {
+export function getMessagesByDay(day: string, sessionId?: string, limit = 10000): Message[] {
+  const effectiveLimit = Math.min(Math.max(limit || 10000, 1), 50000);
   const rows = db.prepare(`
     SELECT * FROM messages
     WHERE date(created_at / 1000, 'unixepoch', 'localtime') = ?
       AND (? IS NULL OR session_id = ?)
     ORDER BY created_at ASC
     LIMIT ?
-  `).all(day, sessionId || null, sessionId || null, limit) as any[];
+  `).all(day, sessionId || null, sessionId || null, effectiveLimit) as any[];
 
   return rows.map(r => ({
     id: r.id,

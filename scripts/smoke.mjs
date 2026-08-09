@@ -185,10 +185,17 @@ async function main() {
   const historyDays = await getJson('/api/history-days?limit=7');
   if (!Array.isArray(historyDays.days)) throw new Error('Daily conversation index missing');
   if (historyDays.days.length > 0) {
-    const dayHistory = await getJson(`/api/history-day/${historyDays.days[0].day}`);
+    const dayHistory = await getJson(`/api/history-day/${historyDays.days[0].day}?limit=50000`);
     if (dayHistory.day !== historyDays.days[0].day || !Array.isArray(dayHistory.messages)) {
       throw new Error('Daily conversation retrieval missing');
     }
+    if (dayHistory.messageCount !== dayHistory.messages.length) throw new Error('Daily conversation count mismatch');
+    const dayPdf = await fetch(`${BASE}/api/history-day/${historyDays.days[0].day}.pdf`);
+    if (!dayPdf.ok) throw new Error(`Daily conversation PDF failed: ${dayPdf.status}`);
+    const pdfType = dayPdf.headers.get('content-type') || '';
+    if (!pdfType.includes('application/pdf')) throw new Error(`Daily conversation PDF content-type mismatch: ${pdfType}`);
+    const pdfBytes = await dayPdf.arrayBuffer();
+    if (pdfBytes.byteLength < 500) throw new Error('Daily conversation PDF is unexpectedly small');
   }
 
   const telemetry = await getJson('/api/telemetry');

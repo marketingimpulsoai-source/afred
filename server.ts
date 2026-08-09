@@ -158,14 +158,52 @@ app.get('/api/history-days', (req, res) => {
   res.json({ days: getConversationDays(limit) });
 });
 
+app.get('/api/history-day/:day.pdf', (req, res) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.day)) {
+    return res.status(400).json({ error: 'day must use YYYY-MM-DD' });
+  }
+  const sessionId = typeof req.query.sessionId === 'string' ? req.query.sessionId : undefined;
+  const messages = getMessagesByDay(req.params.day, sessionId, 50000);
+  const chunks: Buffer[] = [];
+  const doc = new PDFDocument({ margin: 42, size: 'A4', bufferPages: true });
+  doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+  doc.on('end', () => {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="alfred-conversacion-${req.params.day}.pdf"`);
+    res.send(Buffer.concat(chunks));
+  });
+
+  doc.fontSize(19).fillColor('#102a43').text('ALFRED - Conversación diaria completa');
+  doc.moveDown(0.35).fontSize(10).fillColor('#52606d').text(`Día: ${req.params.day} · Mensajes: ${messages.length}${sessionId ? ` · Sesión: ${sessionId}` : ' · Todas las sesiones'}`);
+  doc.moveDown(0.6).fontSize(9).fillColor('#7b8794').text('Exportado desde la memoria persistente local de Alfred. No incluye secretos ni variables de entorno.');
+
+  if (messages.length === 0) {
+    doc.moveDown().fontSize(12).fillColor('#243b53').text('No hay mensajes guardados para este día.');
+  }
+
+  messages.forEach((msg, index) => {
+    const speaker = msg.sender === 'user' ? 'JEFE MAESTRO' : (msg.agentName || msg.agentId || 'ALFRED');
+    if (doc.y > 720) doc.addPage();
+    doc.moveDown(0.7).fontSize(10).fillColor(msg.sender === 'user' ? '#7c3aed' : '#0b7285').text(`${index + 1}. ${speaker} · ${new Date(msg.createdAt).toLocaleString()}`);
+    doc.moveDown(0.15).fontSize(9).fillColor('#243b53').text(String(msg.text || '').replace(/\s+/g, ' '), { align: 'left' });
+    if (msg.routingDecision) {
+      doc.moveDown(0.15).fontSize(8).fillColor('#627d98').text(`Agente: ${msg.routingDecision.chosenAgentName || 'ALFRED'} · Confianza: ${Math.round(msg.routingDecision.confidence)}% · Método: ${msg.routingDecision.method}`);
+    }
+  });
+  doc.end();
+});
+
 app.get('/api/history-day/:day', (req, res) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.day)) {
     return res.status(400).json({ error: 'day must use YYYY-MM-DD' });
   }
   const sessionId = typeof req.query.sessionId === 'string' ? req.query.sessionId : undefined;
-  const messages = getMessagesByDay(req.params.day, sessionId, 1000);
-  res.json({ day: req.params.day, sessionId: sessionId || null, messages });
+  const limit = Math.min(Math.max(Number(req.query.limit) || 10000, 1), 50000);
+  const messages = getMessagesByDay(req.params.day, sessionId, limit);
+  res.json({ day: req.params.day, sessionId: sessionId || null, messageCount: messages.length, messages });
 });
+
+
 
 app.get('/api/agent-work', (req, res) => {
   const now = new Date();
