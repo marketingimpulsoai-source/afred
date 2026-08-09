@@ -14,6 +14,7 @@ import { searchMemory, saveMessage, saveTelemetry, saveAgentWork, getTotalQuerie
 import { getToolHandler } from '../skills/toolRegistry';
 import { detectDailyActivationRoutine, buildDailyRoutineRoutingDecision } from './dailyActivationRoutines';
 import { buildCryptoMarketAnswer, isCryptoMarketRequest } from './marketData';
+import { buildWebResearchPlan } from './webResearch';
 
 function estimateTokens(text: string): number {
   // Aproximación simple: ~4 caracteres por token (heurística estándar)
@@ -179,6 +180,12 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
       ? `\n\nCapa Business Command Layer detectada:\n${businessMatches.map(m => `- ${m.specialist.name} (${m.specialist.businessIds.join('/')}) — ${m.specialist.roleES}. Entregables: ${m.specialist.deliverablesES.slice(0, 4).join(', ')}.`).join('\n')}\nSi la tarea menciona páginas o videos para clientes, coordina con Alfred-ClientStudio y Alfred-CreativeForge, manteniendo aprobación humana antes de publicar.`
       : `\n\nBusiness Command Layer detected:\n${businessMatches.map(m => `- ${m.specialist.name} (${m.specialist.businessIds.join('/')}) — ${m.specialist.roleEN}. Deliverables: ${m.specialist.deliverablesEN.slice(0, 4).join(', ')}.`).join('\n')}\nIf the task mentions pages or videos for clients, coordinate with Alfred-ClientStudio and Alfred-CreativeForge, keeping human approval before publishing.`)
     : '';
+  const webResearchPlan = buildWebResearchPlan(message, language);
+  const webResearchBlock = webResearchPlan
+    ? (language === 'es'
+      ? '\n\nModo investigación web activado: la respuesta debe distinguir claramente hechos verificados de hipótesis. Si no hay datos extraídos en tiempo real dentro del contexto, no inventes cifras, fechas ni fuentes; indica que abriste fuentes oficiales para verificación y entrega un plan de análisis claro.'
+      : '\n\nWeb research mode is active: clearly separate verified facts from hypotheses. If no live extracted data is present in context, do not invent numbers, dates, or sources; state that official-source tabs were opened for verification and provide a clear analysis plan.')
+    : '';
 
   const llm = getLLMProvider();
   let responseText: string;
@@ -187,7 +194,7 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
   if (llm.isAvailable()) {
     try {
       responseText = await llm.generateText(
-        systemPrompt + memoryContextBlock + businessContextBlock,
+        systemPrompt + memoryContextBlock + businessContextBlock + webResearchBlock,
         (history || []).filter(h => h.role !== 'system') as Array<{ role: 'user' | 'model'; text: string }>,
         message
       );
@@ -202,6 +209,9 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
   }
 
   responseText = enforcePersonalityRules(responseText, language);
+  if (webResearchPlan) {
+    responseText = enforcePersonalityRules(webResearchPlan.textPrefix + responseText, language);
+  }
 
   // ── 4. Ejecución de herramientas SOLO si el sub-agente fue asignado
   //       y la solicitud amerita una acción concreta (no simulada) ──────
@@ -309,6 +319,7 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
     latencyMs,
     language,
     memoryContextUsed,
+    uiActions: webResearchPlan?.uiActions,
   };
 }
 

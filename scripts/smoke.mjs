@@ -70,6 +70,16 @@ async function main() {
   const market = await getJson('/api/market/crypto?asset=BTC');
   if (!market.quotes?.[0]?.priceUsd || !market.uiActions?.some(a => String(a.url || '').includes('tradingview.com'))) throw new Error('Live crypto market verification missing');
 
+  const research = await postJson('/api/chat', {
+    message: 'investiga RevenueCat últimas noticias oficiales para un SaaS',
+    language: 'es',
+    securityLevel: 'BALANCED',
+    sessionId: 'smoke_test_web_research',
+    history: []
+  });
+  if (!research.uiActions?.some(action => String(action.url || '').includes('google.com/search'))) throw new Error('Web research did not open official-source search tabs');
+  if (!String(research.text || '').includes('investigación web')) throw new Error('Web research response did not disclose research mode');
+
   const businessRoute = await postJson('/api/business-agents/route', {
     message: 'Crear páginas y videos para clientes SaaS, clínicas e inmobiliarias con CreativeForge',
     limit: 4,

@@ -21,6 +21,13 @@ interface Props {
 }
 
 type PermissionStateLabel = 'unknown' | 'granted' | 'prompt' | 'denied' | 'unsupported';
+type MicDiagnostic = {
+  permission: PermissionStateLabel;
+  speechRecognition: boolean;
+  mediaDevices: boolean;
+  deviceCount: number;
+  message: string;
+};
 type OperationalBriefing = {
   generatedAt: string;
   mission: string;
@@ -118,6 +125,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
   const [lastVoiceCommand, setLastVoiceCommand] = useState('');
   const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({});
   const [briefing, setBriefing] = useState<OperationalBriefing | null>(null);
+  const [micDiagnostic, setMicDiagnostic] = useState<MicDiagnostic | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const handsFreeRef = useRef(false);
@@ -185,10 +193,53 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       stream.getTracks().forEach(track => track.stop());
       localStorage.setItem(AUTO_HANDS_FREE_KEY, 'true');
       setPermissionState('granted');
+      setMicDiagnostic(null);
       return true;
-    } catch {
-      setPermissionState('denied');
+    } catch (error: any) {
+      const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
+      setPermissionState(denied ? 'denied' : 'prompt');
+      setMicDiagnostic({
+        permission: denied ? 'denied' : 'prompt',
+        speechRecognition: Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition),
+        mediaDevices: Boolean(navigator.mediaDevices?.getUserMedia),
+        deviceCount: 0,
+        message: denied
+          ? 'El navegador bloqueó el micrófono para localhost:3000. Cambie el permiso del sitio a Permitir y recargue con Ctrl+F5.'
+          : `No pude abrir el micrófono: ${error?.name || 'error desconocido'}`,
+      });
       return false;
+    }
+  };
+
+  const runMicDiagnostic = async () => {
+    const speechRecognition = Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+    const mediaDevices = Boolean(navigator.mediaDevices?.getUserMedia);
+    let permission = permissionState;
+    let deviceCount = 0;
+    try {
+      if (navigator.permissions?.query) {
+        const status = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+        permission = status.state as PermissionStateLabel;
+        setPermissionState(permission);
+      }
+      if (navigator.mediaDevices?.enumerateDevices) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        deviceCount = devices.filter(device => device.kind === 'audioinput').length;
+      }
+    } catch {}
+    const message = permission === 'denied'
+      ? 'MIC DENIED: Chrome/Edge no volverá a preguntar automáticamente. Abra permisos del sitio, cambie Micrófono a Permitir y recargue.'
+      : permission === 'granted'
+        ? `Micrófono permitido. Dispositivos de entrada detectados: ${deviceCount}. Si no transcribe, revise el micrófono predeterminado de Windows.`
+        : `Permiso pendiente. Dispositivos detectados: ${deviceCount}. Pulse “Dar acceso al micrófono”.`;
+    setMicDiagnostic({ permission, speechRecognition, mediaDevices, deviceCount, message });
+    setLiveTranscript(message);
+  };
+
+  const openMicSettings = () => {
+    const opened = window.open('chrome://settings/content/microphone', '_blank');
+    if (!opened) {
+      setLiveTranscript('Abra manualmente Chrome/Edge → Configuración → Privacidad y seguridad → Configuración de sitios → Micrófono → localhost:3000 → Permitir.');
     }
   };
 
@@ -418,6 +469,17 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
               ? 'Conceda el permiso una vez. Después Alfred se autoactiva al abrir el panel o al iniciar Windows.'
               : 'Grant permission once. After that Alfred auto-activates when the panel opens or Windows starts.'}
           </p>
+          <div className="v3-mic-repair">
+            <button type="button" onClick={runMicDiagnostic}>Diagnóstico micrófono</button>
+            <button type="button" onClick={openMicSettings}>Abrir permisos Chrome/Edge</button>
+          </div>
+          {micDiagnostic && (
+            <div className="v3-mic-diagnostic" role="status">
+              <b>{micDiagnostic.permission.toUpperCase()}</b>
+              <span>{micDiagnostic.message}</span>
+              <small>SpeechRecognition: {micDiagnostic.speechRecognition ? 'OK' : 'NO'} · MediaDevices: {micDiagnostic.mediaDevices ? 'OK' : 'NO'} · Entradas: {micDiagnostic.deviceCount}</small>
+            </div>
+          )}
         </div>
       </section>
 
