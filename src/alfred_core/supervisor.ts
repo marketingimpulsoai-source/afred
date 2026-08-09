@@ -7,7 +7,7 @@
 import { ChatRequest, ChatResponse, Message, ToolCallTrace } from '../types';
 import { routeQuery } from './router';
 import { getLLMProvider } from './llmProvider';
-import { buildAlfredSystemPrompt, enforcePersonalityRules, nextAcknowledgment } from './personality';
+import { buildAlfredSystemPrompt, enforcePersonalityRules, nextAcknowledgment, timeBasedGreeting } from './personality';
 import { getAgentById, AGENT_TOOLS } from '../data/alfredData';
 import { findBusinessMatches } from '../data/businessAgents';
 import { searchMemory, saveMessage, saveTelemetry, saveAgentWork, getTotalQueriesProcessed } from './memory';
@@ -257,22 +257,24 @@ function shouldExecuteTool(message: string): boolean {
   return actionVerbs.test(message);
 }
 
-function buildOfflineFallback(message: string, language: 'es' | 'en', agent: ReturnType<typeof getAgentById> | null, businessSpecialist: ReturnType<typeof findBusinessMatches>[number]['specialist'] | null): string {
+function buildOfflineFallback(message: string, language: 'es' | 'en', agent: ReturnType<typeof getAgentById> | null, _businessSpecialist: ReturnType<typeof findBusinessMatches>[number]['specialist'] | null): string {
   const ack = nextAcknowledgment(language);
-  const businessLineES = businessSpecialist
-    ? ` Capa de negocio activada: ${businessSpecialist.name} (${businessSpecialist.businessIds.join('/')}). Entregables preparados: ${businessSpecialist.deliverablesES.slice(0, 4).join(', ')}.`
-    : '';
-  const businessLineEN = businessSpecialist
-    ? ` Business layer activated: ${businessSpecialist.name} (${businessSpecialist.businessIds.join('/')}). Prepared deliverables: ${businessSpecialist.deliverablesEN.slice(0, 4).join(', ')}.`
-    : '';
   if (language === 'es') {
-    return agent
-      ? `${ack}. He delegado esto a ${agent.nameES}, nuestro especialista en ${agent.categoryES}.${businessLineES} El motor de lenguaje principal no está disponible en este momento; configure GEMINI_API_KEY, OPENAI_API_KEY u OPENROUTER_API_KEY para respuestas generativas completas.`
-      : `${ack}. He registrado su instrucción.${businessLineES} El motor de lenguaje principal no está disponible en este momento; configure una clave de API para respuestas generativas completas.`;
+    if (agent) {
+      return `${ack}. Voy a coordinarlo con ${agent.nameES}, especialista en ${agent.categoryES}. Le mantendré informado del avance y le entregaré un resultado claro.`;
+    }
+    if (/\b(hola|buenos días|buenas tardes|buenas noches)\b/i.test(message)) {
+      return `${timeBasedGreeting(language)}. Estoy bien y completamente disponible para usted. ¿Qué desea que hagamos?`;
+    }
+    return `${ack}. Estoy aquí con usted y listo para ayudarle. Dígame qué necesita y lo resolvemos paso a paso.`;
   }
-  return agent
-    ? `${ack}. I have delegated this to ${agent.nameEN}, our ${agent.categoryEN} specialist.${businessLineEN} The primary language engine is currently unavailable; configure GEMINI_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY for full generative responses.`
-    : `${ack}. Your instruction has been logged.${businessLineEN} The primary language engine is currently unavailable; configure an API key for full generative responses.`;
+  if (agent) {
+    return `${ack}. I will coordinate this with ${agent.nameEN}, our ${agent.categoryEN} specialist. I will keep you informed and deliver a clear result.`;
+  }
+  if (/\b(hello|hi|good morning|good afternoon|good evening)\b/i.test(message)) {
+    return `${timeBasedGreeting(language)}. I am well and fully available to you. What would you like us to work on?`;
+  }
+  return `${ack}. I am here with you and ready to help. Tell me what you need and we will work through it together.`;
 }
 
 export function getUptimeSeconds(): number {

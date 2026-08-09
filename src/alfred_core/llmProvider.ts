@@ -10,6 +10,8 @@
 import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+
 export interface LLMProvider {
   isAvailable(): boolean;
   name(): string;
@@ -23,8 +25,8 @@ class GeminiProvider implements LLMProvider {
   private model = process.env.ALFRED_LLM_MODEL || 'gemini-2.0-flash-exp';
 
   constructor() {
-    if (process.env.GEMINI_API_KEY) {
-      this.client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    if (GEMINI_API_KEY) {
+      this.client = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
     }
   }
 
@@ -154,7 +156,7 @@ let cachedProvider: LLMProvider | null = null;
 export function getLLMProvider(): LLMProvider {
   if (cachedProvider) return cachedProvider;
 
-  if (process.env.GEMINI_API_KEY) {
+  if (GEMINI_API_KEY) {
     cachedProvider = new GeminiProvider();
   } else if (process.env.OPENAI_API_KEY) {
     cachedProvider = new OpenAIProvider();
