@@ -41,35 +41,35 @@ export function buildWebResearchPlan(message: string, language: Language): WebRe
       type: 'open_url',
       label: 'Buscar fuentes oficiales en Google',
       url: searchUrl('google', queries[0]),
-      target: 'external',
+      target: 'internal',
       message: queries[0],
     },
     {
       type: 'open_url',
       label: 'Buscar documentación/fuente primaria en Bing',
       url: searchUrl('bing', queries[1]),
-      target: 'external',
+      target: 'internal',
       message: queries[1],
     },
     {
       type: 'open_url',
       label: 'Contrastar resultados en DuckDuckGo',
       url: searchUrl('duckduckgo', queries[2]),
-      target: 'external',
+      target: 'internal',
       message: queries[2],
     },
     {
       type: 'toast',
       label: 'Investigación web activada',
       message: language === 'es'
-        ? 'Alfred abrió búsquedas en fuentes oficiales. No tratará como hecho lo que no haya podido verificar.'
-        : 'Alfred opened official-source searches. It will not treat unverified claims as facts.',
+        ? 'Alfred preparó búsquedas dentro del panel Web Core con prioridad en fuentes oficiales. No tratará como hecho lo que no haya podido verificar.'
+        : 'Alfred prepared searches inside the Web Core panel with priority on official sources. It will not treat unverified claims as facts.',
     },
   ];
 
   const textPrefix = language === 'es'
-    ? 'Jefe Maestro, activé investigación web porque esta consulta requiere información externa o actual. Abrí pestañas de búsqueda orientadas a fuentes oficiales y documentación primaria. Si no puedo verificar un dato con fuente real, lo marcaré como no verificado en vez de inventarlo.\n\n'
-    : 'Jefe Maestro, I activated web research because this request requires external or current information. I opened search tabs aimed at official sources and primary documentation. If I cannot verify a claim with a real source, I will mark it as unverified instead of inventing it.\n\n';
+    ? 'Jefe Maestro, activé investigación web porque esta consulta requiere información externa o actual. Preparé el panel ALFRED WEB CORE con búsquedas orientadas a fuentes oficiales y documentación primaria. Si no puedo verificar un dato con fuente real, lo marcaré como no verificado en vez de inventarlo.\n\n'
+    : 'Jefe Maestro, I activated web research because this request requires external or current information. I prepared the ALFRED WEB CORE panel with searches aimed at official sources and primary documentation. If I cannot verify a claim with a real source, I will mark it as unverified instead of inventing it.\n\n';
 
   return { shouldResearch: true, textPrefix, uiActions };
 }

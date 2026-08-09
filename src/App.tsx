@@ -26,6 +26,8 @@ function getSpokenText(text: string): string {
     .trim();
 }
 
+type EmbeddedWebPanel = { url: string; label: string; query?: string };
+
 // Sesión persistente en localStorage — sobrevive recargas y cierres del navegador
 function getOrCreateSessionId(): string {
   const KEY = 'alfred_session_id';
@@ -49,6 +51,7 @@ export default function App() {
   const [sessionId] = useState<string>(getOrCreateSessionId());
   const [agentActivityVersion, setAgentActivityVersion] = useState(0);
   const [embeddedMediaUrl, setEmbeddedMediaUrl] = useState<string | null>(null);
+  const [embeddedWebPanel, setEmbeddedWebPanel] = useState<EmbeddedWebPanel | null>(null);
 
   const addToast = (message: string, agentName?: string) => {
     setToasts(prev => [...prev, { id: Date.now().toString(), message, agentName }]);
@@ -76,11 +79,9 @@ export default function App() {
           addToast(`${action.label}${action.volume ? ` · volumen ${action.volume}` : ''}`, 'ALFRED');
           return;
         }
-        const opened = window.open(action.url, '_blank', 'noopener,noreferrer');
+        setEmbeddedWebPanel({ url: action.url, label: action.label || 'Navegación web de Alfred', query: action.message });
         addToast(
-          opened
-            ? `${action.label}${action.volume ? ` · volumen ${action.volume}` : ''}`
-            : `El navegador bloqueó la apertura automática. Abra manualmente: ${action.url}`,
+          `${action.label || 'Web abierta'} · abierto dentro de ALFRED WEB CORE`,
           'ALFRED'
         );
       }
@@ -256,6 +257,9 @@ export default function App() {
             audioMuted={audioMuted}
             embeddedMediaUrl={embeddedMediaUrl}
             onCloseEmbeddedMedia={() => setEmbeddedMediaUrl(null)}
+            embeddedWebPanel={embeddedWebPanel}
+            onNavigateWeb={(panel) => setEmbeddedWebPanel(panel)}
+            onCloseEmbeddedWeb={() => setEmbeddedWebPanel(null)}
           />
         )}
         {activeTab === 'agents' && <SubAgentsGrid subAgents={subAgents} language={language} />}

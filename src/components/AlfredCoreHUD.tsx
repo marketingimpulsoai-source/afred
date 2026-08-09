@@ -4,6 +4,7 @@ import {
   Sparkles, BrainCircuit, Aperture, Waves, Network, Shield, Zap, Mic2, Keyboard,
   RadioTower, Wand2, Palette, Clapperboard, BadgeDollarSign, Bot, Cpu, Power,
   Gauge, HardDrive, ServerCog, Clock3, CheckCircle2, CalendarDays, Download,
+  Globe2, ExternalLink, X, Search,
 } from 'lucide-react';
 import { Language, CoreState, Message, SubAgent, SecurityLevel } from '../types';
 import { AlfredWorldOrb3D } from './AlfredWorldOrb3D';
@@ -18,6 +19,9 @@ interface Props {
   audioMuted: boolean;
   embeddedMediaUrl: string | null;
   onCloseEmbeddedMedia: () => void;
+  embeddedWebPanel: { url: string; label: string; query?: string } | null;
+  onNavigateWeb: (panel: { url: string; label: string; query?: string }) => void;
+  onCloseEmbeddedWeb: () => void;
 }
 
 type PermissionStateLabel = 'unknown' | 'granted' | 'prompt' | 'denied' | 'unsupported';
@@ -120,6 +124,22 @@ function looksLikeAlfredEcho(recognized: string, messages: Message[]): boolean {
   });
 }
 
+function webPanelUrlFromInput(rawInput: string): string {
+  const input = rawInput.trim();
+  if (!input) return 'https://duckduckgo.com/';
+  if (/^https?:\/\//i.test(input)) return input;
+  if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(input)) return `https://${input}`;
+  return `https://duckduckgo.com/?q=${encodeURIComponent(input)}`;
+}
+
+function labelFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '').toUpperCase();
+  } catch {
+    return 'NAVEGACIÓN WEB';
+  }
+}
+
 const STITCH_FUSION_PACKS = [
   { id: '00', name: 'Alfred Core', source: 'núcleo', effect: 'estado operativo · respuesta central · control general' },
   { id: '01', name: 'Alfred Voice', source: 'voz', effect: 'escucha · habla · confirmación al Jefe Maestro' },
@@ -133,7 +153,20 @@ const STITCH_FUSION_PACKS = [
   { id: '09', name: 'Alfred Presence', source: 'mayordomo', effect: 'servicio formal · Jefe Maestro · atención continua' },
 ];
 
-export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, onSendMessage, subAgents, securityLevel, audioMuted, embeddedMediaUrl, onCloseEmbeddedMedia }) => {
+export const AlfredCoreHUD: React.FC<Props> = ({
+  language,
+  coreState,
+  messages,
+  onSendMessage,
+  subAgents,
+  securityLevel,
+  audioMuted,
+  embeddedMediaUrl,
+  onCloseEmbeddedMedia,
+  embeddedWebPanel,
+  onNavigateWeb,
+  onCloseEmbeddedWeb,
+}) => {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [handsFree, setHandsFree] = useState(false);
@@ -148,6 +181,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
   const [dayMessages, setDayMessages] = useState<Message[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [showPreviousPreview, setShowPreviousPreview] = useState(false);
+  const [webAddressInput, setWebAddressInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const handsFreeRef = useRef(false);
@@ -216,6 +250,21 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       recognitionRef.current?.stop?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (embeddedWebPanel?.url) {
+      setWebAddressInput(embeddedWebPanel.query || embeddedWebPanel.url);
+    }
+  }, [embeddedWebPanel?.url, embeddedWebPanel?.query]);
+
+  const openWebInsidePanel = useCallback((rawInput: string) => {
+    const url = webPanelUrlFromInput(rawInput);
+    onNavigateWeb({ url, label: labelFromUrl(url), query: rawInput.trim() || url });
+  }, [onNavigateWeb]);
+
+  const submitWebNavigation = useCallback(() => {
+    openWebInsidePanel(webAddressInput);
+  }, [openWebInsidePanel, webAddressInput]);
 
   const activeCount = subAgents.filter(a => a.status === 'ACTIVE').length;
   const quickPrompts = language === 'es' ? QUICK_ES : QUICK_EN;
@@ -726,6 +775,51 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
             <BriefingTile icon={<Gauge />} label="Pipelines" value={`${briefing.integrations.configuredPipelines}/${briefing.integrations.totalPipelines}`} detail={`${briefing.integrations.mediaRouter.providers} providers · ${briefing.integrations.mediaRouter.seedanceTools} tools`} />
             <BriefingTile icon={<ShieldCheck />} label="Safety" value={briefing.safety.secretsInCode ? 'review' : 'clean'} detail={briefing.safety.writeActionsRequireConfirmation ? 'confirm writes' : 'open writes'} />
             <BriefingTile icon={<CheckCircle2 />} label="Next" value="continuous" detail={briefing.nextImprovements[0]} />
+          </div>
+        </section>
+      )}
+
+      {embeddedWebPanel && (
+        <section className="v3-web-deck" aria-label="Explorador web interno de Alfred">
+          <div className="v3-web-deck-head">
+            <div>
+              <div className="v3-eyebrow small"><Globe2 size={13} /> ALFRED WEB CORE</div>
+              <h3>Explorador web dentro del panel de Alfred</h3>
+              <p>Buscador integrado · navegación interna · solo abre pestaña externa cuando el Jefe Maestro pulsa “Abrir fuera”.</p>
+            </div>
+            <div className="v3-web-actions">
+              <a href={embeddedWebPanel.url} target="_blank" rel="noreferrer" className="v3-web-external">
+                <ExternalLink size={14} /> Abrir fuera
+              </a>
+              <button type="button" onClick={onCloseEmbeddedWeb} aria-label="Cerrar explorador web"><X size={14} /> Cerrar</button>
+            </div>
+          </div>
+          <div className="v3-web-toolbar">
+            <div className="v3-web-current"><Globe2 size={14} /> <span>{embeddedWebPanel.label}</span></div>
+            <div className="v3-web-address">
+              <Search size={14} />
+              <input
+                value={webAddressInput}
+                onChange={(event) => setWebAddressInput(event.target.value)}
+                onKeyDown={(event) => event.key === 'Enter' && submitWebNavigation()}
+                placeholder="Buscar en la web o pegar URL..."
+                aria-label="Buscar o navegar dentro de Alfred Web Core"
+              />
+              <button type="button" onClick={submitWebNavigation}>Navegar</button>
+            </div>
+          </div>
+          <div className="v3-web-frame-wrap">
+            <iframe
+              key={embeddedWebPanel.url}
+              title="Explorador web interno de Alfred"
+              src={embeddedWebPanel.url}
+              sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+              referrerPolicy="no-referrer-when-downgrade"
+              className="v3-web-frame"
+            />
+            <div className="v3-web-frame-note">
+              Algunas páginas bloquean iframes por seguridad. Si eso ocurre, use “Abrir fuera” solo cuando usted lo indique.
+            </div>
           </div>
         </section>
       )}

@@ -162,14 +162,14 @@ export async function buildCryptoMarketAnswer(message: string, language: Languag
       type: 'open_url',
       label: `Abrir TradingView ${first.symbol}/USDT`,
       url: `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`,
-      target: 'external',
+      target: 'internal',
       message: `TradingView para ${tvSymbol}`,
     },
     {
       type: 'open_url',
       label: `Abrir CoinMarketCap ${first.symbol}`,
       url: `https://coinmarketcap.com/currencies/${first.name.toLowerCase().replace(/\s+/g, '-')}/`,
-      target: 'external',
+      target: 'internal',
       message: `CoinMarketCap para ${first.name}`,
     },
   ];
@@ -179,14 +179,14 @@ export async function buildCryptoMarketAnswer(message: string, language: Languag
     ? [
       'Jefe Maestro, verifiqué el mercado con fuentes reales antes de responder. No usaré precios inventados.',
       ...lines,
-      'Abrí TradingView y CoinMarketCap para contrastar gráfico, volumen, tendencia y contexto visual.',
+      'Preparé TradingView y CoinMarketCap dentro del panel ALFRED WEB CORE para contrastar gráfico, volumen, tendencia y contexto visual.',
       'Lectura rápida: si el cambio 24h es positivo pero el volumen cae, conviene esperar confirmación; si precio y volumen suben juntos, la señal tiene más fuerza. Antes de cualquier operación financiera le pediré confirmación humana.',
       caveat,
     ].filter(Boolean).join('\n')
     : [
       'Jefe Maestro, I verified live market sources before answering. I will not use invented prices.',
       ...lines,
-      'I opened TradingView and CoinMarketCap to compare chart, volume, trend, and visual context.',
+      'I prepared TradingView and CoinMarketCap inside the ALFRED WEB CORE panel to compare chart, volume, trend, and visual context.',
       'Quick read: if 24h change is positive but volume is falling, wait for confirmation; if price and volume rise together, the signal is stronger. I will ask for human confirmation before any financial action.',
       caveat,
     ].filter(Boolean).join('\n');

@@ -221,6 +221,13 @@ async function main() {
   if (!coreHudSource.includes('textOverlapScore') || !coreHudSource.includes('que activo en especifico')) {
     throw new Error('Enhanced Alfred echo suppression missing');
   }
+  if (!coreHudSource.includes('ALFRED WEB CORE') || !coreHudSource.includes('webPanelUrlFromInput') || !coreHudSource.includes('Abrir fuera')) {
+    throw new Error('Embedded Alfred Web Core browser panel missing');
+  }
+  const appSource = readFileSync('src/App.tsx', 'utf8');
+  if (!appSource.includes('setEmbeddedWebPanel') || /window\.open\(action\.url/.test(appSource)) {
+    throw new Error('open_url actions must render inside Alfred Web Core, not auto-open external tabs');
+  }
 
   console.log('SMOKE OK');
   console.log(`Provider: ${health.llmProvider} (${health.llmModel})`);
