@@ -98,37 +98,57 @@ const fallbackTTS = (text: string, language: string, onEnd: () => void, onStart?
   const selectVoice = () => {
     const voices = window.speechSynthesis.getVoices();
     const langPrefix = language === 'es' ? 'es' : 'en';
+    const maleNames = language === 'es'
+      ? ['Jorge', 'Diego', 'Pablo', 'Carlos', 'Miguel', 'Raul', 'Google español masculino', 'Microsoft Raul']
+      : ['David', 'Daniel', 'Google UK English Male', 'Microsoft David', 'Arthur', 'James', 'George', 'Ryan'];
+    const femaleMarkers = ['female', ' mujer', ' mujer ', 'helena', 'zira', 'samantha', 'victoria', 'monica', 'paulina', 'laura', 'google español'];
+    const isClearlyFemale = (voice: SpeechSynthesisVoice) => {
+      const name = voice.name.toLowerCase();
+      return femaleMarkers.some(marker => name.includes(marker));
+    };
+    const isMale = (voice: SpeechSynthesisVoice) => {
+      const name = voice.name.toLowerCase();
+      return !isClearlyFemale(voice) && (name.includes('male') || maleNames.some(candidate => name.includes(candidate.toLowerCase())));
+    };
 
-    // Orden de preferencia: nombres masculinos conocidos por idioma
-    const maleNamesEs = ['Jorge', 'Diego', 'Pablo', 'Carlos', 'Google español'];
-    const maleNamesEn = ['David', 'Daniel', 'Google UK English Male', 'Microsoft David', 'Arthur', 'James'];
-    const preferredNames = language === 'es' ? maleNamesEs : maleNamesEn;
-
-    let selected = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix) && preferredNames.some(n => v.name.includes(n)));
-
-    if (!selected) {
-      selected = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix) && v.name.toLowerCase().includes('male'));
+    // Alfred usa siempre una voz masculina; no elegimos una voz arbitraria del idioma.
+    let selected = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix) && isMale(v));
+    // Si Windows no tiene voz masculina española, preferimos voz masculina inglesa
+    // antes que cambiar a una voz femenina.
+    if (!selected) selected = voices.find(v => v.lang.toLowerCase().startsWith('en') && isMale(v));
+    if (selected) {
+      utterance.voice = selected;
+      utterance.lang = selected.lang;
     }
-    if (!selected) {
-      // último recurso: cualquier voz del idioma correcto, con pitch reducido para grave
-      selected = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix));
-    }
-    if (selected) utterance.voice = selected;
+    return Boolean(selected);
+  };
+
+  let spoken = false;
+  const speak = () => {
+    if (spoken) return;
+    spoken = true;
+    selectVoice();
+    // Timbre grave y ritmo natural de mayordomo.
+    utterance.pitch = 0.75;
+    utterance.rate = 0.92;
+    utterance.onstart = () => onStart?.();
+    utterance.onend = onEnd;
+    utterance.onerror = onEnd;
+    window.speechSynthesis.speak(utterance);
   };
 
   if (window.speechSynthesis.getVoices().length > 0) {
-    selectVoice();
+    speak();
   } else {
-    window.speechSynthesis.onvoiceschanged = selectVoice;
+    const loadVoices = () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+      speak();
+    };
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices, { once: true });
+    window.setTimeout(() => {
+      if (!spoken) speak();
+    }, 1000);
   }
-
-  // Pitch grave y ritmo pausado — carácter de mayordomo británico formal
-  utterance.pitch = 0.75;
-  utterance.rate = 0.92;
-  utterance.onstart = () => onStart?.();
-  utterance.onend = onEnd;
-  utterance.onerror = onEnd;
-  window.speechSynthesis.speak(utterance);
 };
 
 export const playAcknowledgmentChime = () => {
