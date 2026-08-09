@@ -1,7 +1,49 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
 
 const BASE = process.env.ALFRED_BASE_URL || 'http://localhost:3000';
+let managedServer = null;
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function canReachHealth() {
+  try {
+    const res = await fetch(`${BASE}/api/health`);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureServer() {
+  if (await canReachHealth()) return;
+  managedServer = spawn(process.execPath, ['dist/server.mjs'], {
+    env: { ...process.env, NODE_ENV: 'production' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let tail = '';
+  const collect = chunk => { tail = `${tail}${chunk}`.slice(-3000); };
+  managedServer.stdout.on('data', collect);
+  managedServer.stderr.on('data', collect);
+  for (let i = 0; i < 45; i += 1) {
+    if (await canReachHealth()) return;
+    if (managedServer.exitCode !== null) break;
+    await wait(1000);
+  }
+  throw new Error(`Smoke server did not become ready at ${BASE}. ${tail}`);
+}
+
+function stopManagedServer() {
+  if (!managedServer || managedServer.exitCode !== null) return;
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(managedServer.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    managedServer.kill('SIGTERM');
+  }
+}
 
 async function getJson(path) {
   const res = await fetch(`${BASE}${path}`);
@@ -20,6 +62,7 @@ async function postJson(path, body) {
 }
 
 async function main() {
+  await ensureServer();
   const health = await getJson('/api/health');
   if (health.status !== 'online') throw new Error('Health check failed');
 
@@ -278,7 +321,10 @@ async function main() {
   console.log(`Routing security: ${security.assignedAgent.nameES}`);
 }
 
-main().catch(err => {
-  console.error('SMOKE FAILED:', err.message);
-  process.exit(1);
-});
+main()
+  .then(() => stopManagedServer())
+  .catch(err => {
+    stopManagedServer();
+    console.error('SMOKE FAILED:', err.message);
+    process.exit(1);
+  });
