@@ -69,6 +69,7 @@ async function main() {
 
   const market = await getJson('/api/market/crypto?asset=BTC');
   if (!market.quotes?.[0]?.priceUsd || !market.uiActions?.some(a => String(a.url || '').includes('tradingview.com'))) throw new Error('Live crypto market verification missing');
+  if (!market.uiActions?.every(a => a.type !== 'open_url' || a.target === 'internal')) throw new Error('Market web actions must stay inside Alfred Web Core');
 
   const research = await postJson('/api/chat', {
     message: 'investiga RevenueCat últimas noticias oficiales para un SaaS',
@@ -77,8 +78,26 @@ async function main() {
     sessionId: 'smoke_test_web_research',
     history: []
   });
-  if (!research.uiActions?.some(action => String(action.url || '').includes('google.com/search'))) throw new Error('Web research did not open official-source search tabs');
-  if (!String(research.text || '').includes('investigación web')) throw new Error('Web research response did not disclose research mode');
+  if (!research.uiActions?.some(action => String(action.url || '').includes('google.com/search'))) throw new Error('Web research did not prepare official-source search in Web Core');
+  if (!research.uiActions?.every(action => action.type !== 'open_url' || action.target === 'internal')) throw new Error('Web research must stay inside Alfred Web Core');
+  if (!String(research.text || '').includes('ALFRED WEB CORE')) throw new Error('Web research response must mention Alfred Web Core');
+
+  const fastConversation = await postJson('/api/chat', {
+    message: 'hola como estas',
+    language: 'es',
+    securityLevel: 'BALANCED',
+    sessionId: 'smoke_fast_chat',
+    history: []
+  });
+  if ((fastConversation.latencyMs ?? 9999) > 250) throw new Error(`Fast conversation path too slow: ${fastConversation.latencyMs}`);
+  if (fastConversation.assignedAgent) throw new Error('Fast normal conversation should not delegate to a subagent');
+
+  await postJson('/api/local-message', {
+    sessionId: 'smoke_local_ui',
+    language: 'es',
+    userText: 'silencia la música de YouTube',
+    alfredText: 'Entendido, Jefe Maestro. Silencié la música del panel de YouTube.'
+  });
 
   const businessRoute = await postJson('/api/business-agents/route', {
     message: 'Crear páginas y videos para clientes SaaS, clínicas e inmobiliarias con CreativeForge',
@@ -221,12 +240,26 @@ async function main() {
   if (!coreHudSource.includes('textOverlapScore') || !coreHudSource.includes('que activo en especifico')) {
     throw new Error('Enhanced Alfred echo suppression missing');
   }
-  if (!coreHudSource.includes('ALFRED WEB CORE') || !coreHudSource.includes('webPanelUrlFromInput') || !coreHudSource.includes('Abrir fuera')) {
+  if (!coreHudSource.includes('ALFRED WEB CORE') || !coreHudSource.includes('webPanelUrlFromInput') || !coreHudSource.includes('Abrir fuera') || !coreHudSource.includes('Copiar enlace') || !coreHudSource.includes('Recargar')) {
     throw new Error('Embedded Alfred Web Core browser panel missing');
+  }
+  if (!coreHudSource.includes('sendMediaCommand') || !coreHudSource.includes('Audio del panel silenciado para proteger el micrófono')) {
+    throw new Error('Media audio guard/mute controls missing');
   }
   const appSource = readFileSync('src/App.tsx', 'utf8');
   if (!appSource.includes('setEmbeddedWebPanel') || /window\.open\(action\.url/.test(appSource)) {
     throw new Error('open_url actions must render inside Alfred Web Core, not auto-open external tabs');
+  }
+  if (!appSource.includes('/api/local-message') || !appSource.includes('mediaAudioCommand')) {
+    throw new Error('Instant media command persistence missing');
+  }
+  const supervisorSource = readFileSync('src/alfred_core/supervisor.ts', 'utf8');
+  if (!supervisorSource.includes('buildFastConversationReply') || !supervisorSource.includes('alfred_core_fast')) {
+    throw new Error('Fast normal conversation path missing');
+  }
+  const youtubePlayerSource = readFileSync('public/youtube-routine-player.html', 'utf8');
+  if (!youtubePlayerSource.includes('alfred-youtube-control') || !youtubePlayerSource.includes('Silenciado por Alfred')) {
+    throw new Error('YouTube routine player mute bridge missing');
   }
 
   console.log('SMOKE OK');

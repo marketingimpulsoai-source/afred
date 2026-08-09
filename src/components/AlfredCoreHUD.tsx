@@ -4,7 +4,7 @@ import {
   Sparkles, BrainCircuit, Aperture, Waves, Network, Shield, Zap, Mic2, Keyboard,
   RadioTower, Wand2, Palette, Clapperboard, BadgeDollarSign, Bot, Cpu, Power,
   Gauge, HardDrive, ServerCog, Clock3, CheckCircle2, CalendarDays, Download,
-  Globe2, ExternalLink, X, Search,
+  Globe2, ExternalLink, X, Search, Copy, Volume2, VolumeX, Pause, Play,
 } from 'lucide-react';
 import { Language, CoreState, Message, SubAgent, SecurityLevel } from '../types';
 import { AlfredWorldOrb3D } from './AlfredWorldOrb3D';
@@ -18,6 +18,8 @@ interface Props {
   securityLevel: SecurityLevel;
   audioMuted: boolean;
   embeddedMediaUrl: string | null;
+  embeddedMediaMuted: boolean;
+  onToggleEmbeddedMediaMute: (muted: boolean) => void;
   onCloseEmbeddedMedia: () => void;
   embeddedWebPanel: { url: string; label: string; query?: string } | null;
   onNavigateWeb: (panel: { url: string; label: string; query?: string }) => void;
@@ -162,6 +164,8 @@ export const AlfredCoreHUD: React.FC<Props> = ({
   securityLevel,
   audioMuted,
   embeddedMediaUrl,
+  embeddedMediaMuted,
+  onToggleEmbeddedMediaMute,
   onCloseEmbeddedMedia,
   embeddedWebPanel,
   onNavigateWeb,
@@ -182,7 +186,10 @@ export const AlfredCoreHUD: React.FC<Props> = ({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [showPreviousPreview, setShowPreviousPreview] = useState(false);
   const [webAddressInput, setWebAddressInput] = useState('');
+  const [webReloadKey, setWebReloadKey] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const mediaFrameRef = useRef<HTMLIFrameElement>(null);
+  const webFrameRef = useRef<HTMLIFrameElement>(null);
   const recognitionRef = useRef<any>(null);
   const handsFreeRef = useRef(false);
   const autoStartAttemptedRef = useRef(false);
@@ -265,6 +272,36 @@ export const AlfredCoreHUD: React.FC<Props> = ({
   const submitWebNavigation = useCallback(() => {
     openWebInsidePanel(webAddressInput);
   }, [openWebInsidePanel, webAddressInput]);
+
+  const sendMediaCommand = useCallback((action: 'mute' | 'unmute' | 'pause' | 'play' | 'volume', volume = 35) => {
+    if (action === 'mute' || action === 'pause') onToggleEmbeddedMediaMute(true);
+    if (action === 'unmute' || action === 'play') onToggleEmbeddedMediaMute(false);
+    mediaFrameRef.current?.contentWindow?.postMessage({ type: 'alfred-youtube-control', action, volume }, window.location.origin);
+    setLiveTranscript(action === 'mute' || action === 'pause' ? 'Audio del panel silenciado para proteger el micrófono.' : 'Audio del panel reactivado por orden del Jefe Maestro.');
+  }, [onToggleEmbeddedMediaMute]);
+
+  const copyCurrentWebLink = useCallback(async () => {
+    if (!embeddedWebPanel?.url) return;
+    try {
+      await navigator.clipboard.writeText(embeddedWebPanel.url);
+      setLiveTranscript('Enlace copiado al portapapeles del Jefe Maestro.');
+    } catch {
+      setLiveTranscript(`Copie manualmente: ${embeddedWebPanel.url}`);
+    }
+  }, [embeddedWebPanel?.url]);
+
+  const reloadWebPanel = useCallback(() => {
+    if (webFrameRef.current) webFrameRef.current.dataset.reloadRequestedAt = String(Date.now());
+    setWebReloadKey(value => value + 1);
+    setLiveTranscript('Recargando panel ALFRED WEB CORE.');
+  }, []);
+
+  useEffect(() => {
+    if (!isListening && !handsFree) return;
+    if (embeddedMediaUrl && !embeddedMediaMuted) {
+      sendMediaCommand('mute');
+    }
+  }, [isListening, handsFree, embeddedMediaUrl, embeddedMediaMuted, sendMediaCommand]);
 
   const activeCount = subAgents.filter(a => a.status === 'ACTIVE').length;
   const quickPrompts = language === 'es' ? QUICK_ES : QUICK_EN;
@@ -368,13 +405,39 @@ export const AlfredCoreHUD: React.FC<Props> = ({
       handleSend();
       return true;
     }
+    if (/\b(copia|copiar|copy)\b.*\b(enlace|link|url)\b/.test(normalized)) {
+      copyCurrentWebLink();
+      return true;
+    }
+    if (/\b(busca|buscar|search|navega|abre en web core)\b/.test(normalized) && normalized.length > 8) {
+      const query = normalized
+        .replace(/\b(alfred|busca|buscar|search|navega|abre en web core|en web core|dentro del panel|jefe maestro)\b/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (query) {
+        openWebInsidePanel(query);
+        return true;
+      }
+    }
+    if (/\b(silencia|silencio|mute|calla|baja)\b.*\b(musica|youtube|reproductor|media|audio)\b|\b(musica|youtube|reproductor|media|audio)\b.*\b(silencia|silencio|mute|calla|baja)\b/.test(normalized)) {
+      sendMediaCommand('mute');
+      return true;
+    }
+    if (/\b(pausa|para|deten)\b.*\b(musica|youtube|reproductor|media|audio)\b|\b(musica|youtube|reproductor|media|audio)\b.*\b(pausa|para|deten)\b/.test(normalized)) {
+      sendMediaCommand('pause');
+      return true;
+    }
+    if (/\b(reactiva|activa|quita silencio|unmute|play)\b.*\b(musica|youtube|reproductor|media|audio)\b|\b(musica|youtube|reproductor|media|audio)\b.*\b(reactiva|activa|quita silencio|unmute|play)\b/.test(normalized)) {
+      sendMediaCommand('unmute');
+      return true;
+    }
     if (normalized.includes('silencio') || normalized.includes('mute') || normalized.includes('voice off')) {
       const button = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-voice-command]')).find(btn => btn.textContent?.toLowerCase().includes('voice'));
       button?.click();
       return true;
     }
     return false;
-  }, [handleSend]);
+  }, [handleSend, copyCurrentWebLink, openWebInsidePanel, sendMediaCommand]);
 
   const startRecognition = useCallback(async (continuous = false) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -788,6 +851,12 @@ export const AlfredCoreHUD: React.FC<Props> = ({
               <p>Buscador integrado · navegación interna · solo abre pestaña externa cuando el Jefe Maestro pulsa “Abrir fuera”.</p>
             </div>
             <div className="v3-web-actions">
+              <button type="button" onClick={reloadWebPanel} className="v3-web-copy">
+                <Activity size={14} /> Recargar
+              </button>
+              <button type="button" onClick={copyCurrentWebLink} className="v3-web-copy">
+                <Copy size={14} /> Copiar enlace
+              </button>
               <a href={embeddedWebPanel.url} target="_blank" rel="noreferrer" className="v3-web-external">
                 <ExternalLink size={14} /> Abrir fuera
               </a>
@@ -810,7 +879,8 @@ export const AlfredCoreHUD: React.FC<Props> = ({
           </div>
           <div className="v3-web-frame-wrap">
             <iframe
-              key={embeddedWebPanel.url}
+              ref={webFrameRef}
+              key={`${embeddedWebPanel.url}_${webReloadKey}`}
               title="Explorador web interno de Alfred"
               src={embeddedWebPanel.url}
               sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox"
@@ -830,11 +900,18 @@ export const AlfredCoreHUD: React.FC<Props> = ({
             <div>
               <div className="v3-eyebrow small"><Radio size={13} /> ALFRED MEDIA CORE</div>
               <h3>Música de la rutina diaria</h3>
-              <p>Reproductor completo abajo · YouTube integrado · volumen moderado cuando el navegador lo permite.</p>
+              <p>{embeddedMediaMuted ? 'Silenciado por defecto para proteger el micrófono · Alfred lo reactiva solo por orden del Jefe Maestro.' : 'Reproductor completo abajo · YouTube integrado · volumen moderado cuando el navegador lo permite.'}</p>
             </div>
-            <button type="button" onClick={onCloseEmbeddedMedia} aria-label="Cerrar reproductor">Cerrar</button>
+            <div className="v3-media-actions">
+              <button type="button" onClick={() => sendMediaCommand(embeddedMediaMuted ? 'unmute' : 'mute')} aria-label={embeddedMediaMuted ? 'Activar audio de música' : 'Silenciar música'}>
+                {embeddedMediaMuted ? <Volume2 size={14} /> : <VolumeX size={14} />} {embeddedMediaMuted ? 'Activar audio' : 'Silenciar'}
+              </button>
+              <button type="button" onClick={() => sendMediaCommand('pause')} aria-label="Pausar música"><Pause size={14} /> Pausar</button>
+              <button type="button" onClick={() => sendMediaCommand('play')} aria-label="Reproducir música"><Play size={14} /> Play</button>
+              <button type="button" onClick={onCloseEmbeddedMedia} aria-label="Cerrar reproductor">Cerrar</button>
+            </div>
           </div>
-          <iframe title="Música de la rutina diaria de Alfred" src={embeddedMediaUrl} allow="autoplay; encrypted-media" className="v3-media-frame" />
+          <iframe ref={mediaFrameRef} title="Música de la rutina diaria de Alfred" src={embeddedMediaUrl} allow="autoplay; encrypted-media" className="v3-media-frame" />
         </section>
       )}
     </div>

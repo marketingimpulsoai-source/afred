@@ -32,11 +32,44 @@
     const list = params.get('list') || '';
     const index = Number(params.get('index') || '1');
     const volume = Math.max(0, Math.min(100, Number(params.get('volume') || '40')));
+    const startMuted = params.get('muted') === '1';
     const original = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}${list ? `&list=${encodeURIComponent(list)}` : ''}${index ? `&index=${index}` : ''}`;
     document.getElementById('original').href = original;
-    document.getElementById('status').textContent = `Volumen objetivo: ${volume}/100 · Video: ${videoId}`;
+    document.getElementById('status').textContent = `${startMuted ? 'Silenciado por Alfred' : `Volumen objetivo: ${volume}/100`} · Video: ${videoId}`;
 
     let player;
+    function applyAudioState(action, nextVolume) {
+      if (!player || typeof player.mute !== 'function') return;
+      try {
+        if (action === 'mute') {
+          player.mute();
+          document.getElementById('status').textContent = 'Silenciado por Alfred · micrófono protegido';
+        } else if (action === 'unmute') {
+          player.unMute();
+          player.setVolume(Math.max(0, Math.min(100, Number(nextVolume ?? volume))));
+          document.getElementById('status').textContent = `Reproduciendo · volumen ${Math.max(0, Math.min(100, Number(nextVolume ?? volume)))}/100`;
+        } else if (action === 'volume') {
+          player.setVolume(Math.max(0, Math.min(100, Number(nextVolume ?? volume))));
+          document.getElementById('status').textContent = `Volumen ajustado por Alfred · ${Math.max(0, Math.min(100, Number(nextVolume ?? volume)))}/100`;
+        } else if (action === 'pause') {
+          player.pauseVideo();
+          document.getElementById('status').textContent = 'Pausado por Alfred';
+        } else if (action === 'play') {
+          player.playVideo();
+          if (startMuted) player.mute();
+          document.getElementById('status').textContent = startMuted ? 'Reproduciendo silenciado por Alfred' : `Reproduciendo · volumen ${volume}/100`;
+        }
+      } catch (err) {
+        document.getElementById('status').textContent = 'No pude controlar el audio automáticamente; use el control del navegador.';
+      }
+    }
+
+    window.addEventListener('message', (event) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data || {};
+      if (data.type !== 'alfred-youtube-control') return;
+      applyAudioState(data.action, data.volume);
+    });
     window.onYouTubeIframeAPIReady = function () {
       player = new YT.Player('player', {
         videoId,
@@ -45,9 +78,10 @@
           onReady: (event) => {
             try {
               event.target.setVolume(volume);
-              event.target.unMute();
+              if (startMuted) event.target.mute();
+              else event.target.unMute();
               event.target.playVideo();
-              document.getElementById('status').textContent = `Reproduciendo · volumen moderado ${volume}/100`;
+              document.getElementById('status').textContent = startMuted ? 'Reproduciendo silenciado por Alfred · micrófono protegido' : `Reproduciendo · volumen moderado ${volume}/100`;
             } catch (err) {
               document.getElementById('status').textContent = 'No pude ajustar volumen automáticamente; use el control del navegador.';
             }

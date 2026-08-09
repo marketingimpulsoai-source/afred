@@ -14,7 +14,7 @@ import { searchMemory, saveMessage, saveTelemetry, saveAgentWork, getTotalQuerie
 import { getToolHandler } from '../skills/toolRegistry';
 import { detectDailyActivationRoutine, buildDailyRoutineRoutingDecision } from './dailyActivationRoutines';
 import { buildCryptoMarketAnswer, isCryptoMarketRequest } from './marketData';
-import { buildWebResearchPlan } from './webResearch';
+import { buildWebResearchPlan, requiresExternalResearch } from './webResearch';
 
 function estimateTokens(text: string): number {
   // Aproximación simple: ~4 caracteres por token (heurística estándar)
@@ -27,9 +27,74 @@ function estimateCostUsd(tokensUsed: number, model: string): number {
   return (tokensUsed / 1000) * ratePerK;
 }
 
+function normalizeFast(text: string): string {
+  return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function buildFastConversationReply(message: string, language: 'es' | 'en'): string | null {
+  const q = normalizeFast(message);
+  if (!q || q.length > 140) return null;
+  if (/\balfred\b/.test(q) && /\b(buenos dias|buenas tardes|buenas noches|good morning|good afternoon|good evening)\b/.test(q)) return null;
+  if (requiresExternalResearch(message) || isCryptoMarketRequest(message)) return null;
+  if (/\b(crea|construye|programa|analiza|investiga|busca|revisa|audita|cotiza|precio|mercado|crypto|despliega|configura|create|build|analyze|research|search|review|audit|price|market|deploy|configure)\b/.test(q)) return null;
+
+  if (/\b(hola|buenas|buenos dias|buenas tardes|buenas noches|que tal|como estas|aqui ando|listo|ok|gracias|perfecto|hey|hi|hello|thanks)\b/.test(q)) {
+    return language === 'es'
+      ? `${timeBasedGreeting('es')}. Estoy con usted, atento y listo. Dígame qué necesita y responderé sin demora.`
+      : `${timeBasedGreeting('en')}, Jefe Maestro. I am with you, attentive and ready. Tell me what you need and I will respond without delay.`;
+  }
+
+  if (/\b(si|no|vale|dale|continua|sigue|entendido|comprendido)\b/.test(q) && q.length < 50) {
+    return language === 'es'
+      ? 'Entendido, Jefe Maestro. Continúo atento. Puede darme la siguiente orden cuando desee.'
+      : 'Understood, Jefe Maestro. I remain attentive. Give me the next instruction whenever you wish.';
+  }
+
+  return null;
+}
+
 export async function processUserRequest(req: ChatRequest): Promise<ChatResponse> {
   const startTime = Date.now();
   const { message, language, sessionId, history } = req;
+
+  // ── 0.0. Conversación normal ultrarrápida ───────────────────────────────
+  // No usa router, memoria ni LLM cuando es charla corta sin búsqueda.
+  const fastReply = buildFastConversationReply(message, language);
+  if (fastReply) {
+    const responseId = 'msg_' + Date.now();
+    const nowIso = new Date().toLocaleTimeString();
+    const responseText = enforcePersonalityRules(fastReply, language);
+    const latencyMs = Date.now() - startTime;
+    saveMessage({ id: 'usr_' + Date.now(), sessionId, sender: 'user', text: message, timestamp: nowIso, createdAt: startTime, language });
+    saveMessage({ id: responseId, sessionId, sender: 'alfred', agentName: 'ALFRED', text: responseText, timestamp: nowIso, createdAt: Date.now(), language, confidenceScore: 99 });
+    saveTelemetry({
+      id: 'log_' + Date.now(),
+      timestamp: nowIso,
+      createdAt: Date.now(),
+      query: message,
+      assignedAgentId: 'alfred_core_fast',
+      assignedAgentName: 'ALFRED Core — Fast Conversation',
+      latencyMs,
+      tokensUsed: estimateTokens(message + responseText),
+      confidence: 99,
+      status: 'SUCCESS',
+      policyCheck: 'POL-PRIVACY-01: OK · fast local conversation path',
+      toolsInvokedCount: 0,
+      costEstimateUsd: 0,
+    });
+    return {
+      id: responseId,
+      text: responseText,
+      assignedAgent: null,
+      routingDecision: undefined,
+      toolCallTraces: [],
+      confidenceScore: 99,
+      latencyMs,
+      language,
+      memoryContextUsed: [],
+      uiActions: [],
+    };
+  }
 
   // ── 0. Rutinas de activación diaria por comando explícito ──────────────
   // El Jefe Maestro decide si es mañana/tarde/noche por la frase dicha;

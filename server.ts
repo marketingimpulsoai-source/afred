@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { processUserRequest, getUptimeSeconds, getTotalQueries } from './src/alfred_core/supervisor';
 import { getLLMProvider } from './src/alfred_core/llmProvider';
-import { getMessagesBySession, getMessagesByDay, getConversationDays, getRecentTelemetry, getAgentWorkReport } from './src/alfred_core/memory';
+import { getMessagesBySession, getMessagesByDay, getConversationDays, getRecentTelemetry, getAgentWorkReport, saveMessage } from './src/alfred_core/memory';
 import PDFDocument from 'pdfkit';
 import { SUB_AGENTS, AGENT_TOOLS, SAFETY_POLICIES } from './src/data/alfredData';
 import { BUSINESS_AGENTS, CLIENT_SEGMENTS, PAGE_VIDEO_FACTORY, findBusinessMatches } from './src/data/businessAgents';
@@ -240,6 +240,19 @@ app.get('/api/agent-work.pdf', (req, res) => {
     doc.fontSize(9).fillColor('#486581').text(`Resultado: ${item.summary}`);
   });
   doc.end();
+});
+
+// ── Chat principal — Orquestación real ──────────────────────────────────
+app.post('/api/local-message', (req, res) => {
+  const { sessionId = 'default', language = 'es', userText = '', alfredText = '' } = req.body || {};
+  if (typeof userText !== 'string' || typeof alfredText !== 'string' || !userText.trim() || !alfredText.trim()) {
+    return res.status(400).json({ error: 'userText and alfredText are required' });
+  }
+  const now = Date.now();
+  const timestamp = new Date().toLocaleTimeString();
+  saveMessage({ id: 'usr_' + now, sessionId: String(sessionId), sender: 'user', text: userText.slice(0, 5000), timestamp, createdAt: now, language: language === 'en' ? 'en' : 'es' });
+  saveMessage({ id: 'alfred_local_' + now, sessionId: String(sessionId), sender: 'alfred', agentName: 'ALFRED', text: alfredText.slice(0, 5000), timestamp, createdAt: now + 1, language: language === 'en' ? 'en' : 'es' });
+  res.json({ ok: true });
 });
 
 // ── Chat principal — Orquestación real ──────────────────────────────────

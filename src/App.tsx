@@ -28,6 +28,14 @@ function getSpokenText(text: string): string {
 
 type EmbeddedWebPanel = { url: string; label: string; query?: string };
 
+function withMediaMuteParam(url: string, muted: boolean): string {
+  if (!url.startsWith('/youtube-routine-player.html')) return url;
+  const [path, query = ''] = url.split('?');
+  const params = new URLSearchParams(query);
+  params.set('muted', muted ? '1' : '0');
+  return `${path}?${params.toString()}`;
+}
+
 // Sesión persistente en localStorage — sobrevive recargas y cierres del navegador
 function getOrCreateSessionId(): string {
   const KEY = 'alfred_session_id';
@@ -51,6 +59,7 @@ export default function App() {
   const [sessionId] = useState<string>(getOrCreateSessionId());
   const [agentActivityVersion, setAgentActivityVersion] = useState(0);
   const [embeddedMediaUrl, setEmbeddedMediaUrl] = useState<string | null>(null);
+  const [embeddedMediaMuted, setEmbeddedMediaMuted] = useState<boolean>(true);
   const [embeddedWebPanel, setEmbeddedWebPanel] = useState<EmbeddedWebPanel | null>(null);
 
   const addToast = (message: string, agentName?: string) => {
@@ -75,7 +84,7 @@ export default function App() {
       }
       if (action.type === 'open_url' && action.url) {
         if (action.target === 'youtube' && action.url.startsWith('/youtube-routine-player.html')) {
-          setEmbeddedMediaUrl(action.url);
+          setEmbeddedMediaUrl(withMediaMuteParam(action.url, embeddedMediaMuted));
           addToast(`${action.label}${action.volume ? ` · volumen ${action.volume}` : ''}`, 'ALFRED');
           return;
         }
@@ -86,7 +95,7 @@ export default function App() {
         );
       }
     });
-  }, []);
+  }, [embeddedMediaMuted]);
 
   // ── Cargar historial persistente real desde SQLite al montar ──────────
   useEffect(() => {
@@ -136,6 +145,48 @@ export default function App() {
   }
 
   const handleSendMessage = useCallback(async (text: string) => {
+    const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const mediaAudioCommand = /\b(silencia|silencio|mute|calla|baja|pausa|para|deten|quita silencio|activa audio|activa musica|sube|unmute)\b.*\b(musica|youtube|reproductor|media|audio)\b|\b(musica|youtube|reproductor|media|audio)\b.*\b(silencia|silencio|mute|calla|baja|pausa|para|deten|quita silencio|activa audio|activa musica|sube|unmute)\b/.test(normalized);
+    if (mediaAudioCommand) {
+      const shouldUnmute = /\b(quita silencio|activa audio|activa musica|sube|unmute)\b/.test(normalized);
+      const shouldPause = /\b(pausa|para|deten)\b/.test(normalized);
+      const userMsg: Message = {
+        id: 'usr_' + Date.now(),
+        sessionId,
+        sender: 'user',
+        text,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        createdAt: Date.now(),
+        language,
+      };
+      const response = shouldPause
+        ? 'Entendido, Jefe Maestro. Pausé la música del panel para proteger el micrófono y mantener la conversación limpia.'
+        : shouldUnmute
+          ? 'Entendido, Jefe Maestro. Reactivé el audio de la música. Si el micrófono empieza a escuchar, Alfred volverá a silenciarla automáticamente.'
+          : 'Entendido, Jefe Maestro. Silencié la música del panel de YouTube para que no interrumpa el micrófono ni nuestra conversación.';
+      const alfredMsg: Message = {
+        id: 'alfred_media_' + Date.now(),
+        sessionId,
+        sender: 'alfred',
+        agentName: 'ALFRED',
+        text: response,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        createdAt: Date.now(),
+        language,
+      };
+      setEmbeddedMediaMuted(!shouldUnmute);
+      window.setTimeout(() => {
+        document.querySelector<HTMLIFrameElement>('iframe[title="Música de la rutina diaria de Alfred"]')?.contentWindow?.postMessage({ type: 'alfred-youtube-control', action: shouldPause ? 'pause' : shouldUnmute ? 'unmute' : 'mute', volume: 35 }, window.location.origin);
+      }, 50);
+      setMessages(prev => [...prev, userMsg, alfredMsg]);
+      fetch('/api/local-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, language, userText: text, alfredText: response }),
+      }).catch(() => {});
+      return;
+    }
+
     const userMsg: Message = {
       id: 'usr_' + Date.now(),
       sessionId,
@@ -256,6 +307,8 @@ export default function App() {
             securityLevel={securityLevel}
             audioMuted={audioMuted}
             embeddedMediaUrl={embeddedMediaUrl}
+            embeddedMediaMuted={embeddedMediaMuted}
+            onToggleEmbeddedMediaMute={(muted) => setEmbeddedMediaMuted(muted)}
             onCloseEmbeddedMedia={() => setEmbeddedMediaUrl(null)}
             embeddedWebPanel={embeddedWebPanel}
             onNavigateWeb={(panel) => setEmbeddedWebPanel(panel)}
