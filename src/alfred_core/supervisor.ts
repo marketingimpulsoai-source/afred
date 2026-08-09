@@ -13,6 +13,7 @@ import { findBusinessMatches } from '../data/businessAgents';
 import { searchMemory, saveMessage, saveTelemetry, saveAgentWork, getTotalQueriesProcessed } from './memory';
 import { getToolHandler } from '../skills/toolRegistry';
 import { detectDailyActivationRoutine, buildDailyRoutineRoutingDecision } from './dailyActivationRoutines';
+import { buildCryptoMarketAnswer, isCryptoMarketRequest } from './marketData';
 
 function estimateTokens(text: string): number {
   // Aproximación simple: ~4 caracteres por token (heurística estándar)
@@ -93,6 +94,67 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
       uiActions: dailyRoutine.uiActions,
       routineId: dailyRoutine.id,
     };
+  }
+
+  // ── 0.5. Mercado/crypto con fuentes reales antes del LLM ───────────────
+  if (isCryptoMarketRequest(message)) {
+    const marketAnswer = await buildCryptoMarketAnswer(message, language);
+    if (marketAnswer) {
+      const responseId = 'msg_' + Date.now();
+      const nowIso = new Date().toLocaleTimeString();
+      const latencyMs = Date.now() - startTime;
+      const responseText = enforcePersonalityRules(marketAnswer.text, language);
+      const routingDecision = {
+        query: message,
+        chosenAgentId: 'webb',
+        chosenAgentName: 'Webb',
+        confidence: 98,
+        reasoningES: 'Solicitud de mercado/crypto detectada; Alfred verificó precio en fuentes reales antes de responder.',
+        reasoningEN: 'Market/crypto request detected; Alfred verified live sources before answering.',
+        candidates: [{ agentId: 'webb', score: 98, reason: 'live_market_data' }],
+        latencyMs,
+        method: 'direct' as const,
+      };
+
+      saveMessage({ id: 'usr_' + Date.now(), sessionId, sender: 'user', text: message, timestamp: nowIso, createdAt: startTime, language });
+      saveMessage({ id: responseId, sessionId, sender: 'alfred', agentName: 'ALFRED', text: responseText, timestamp: nowIso, createdAt: Date.now(), language, routingDecision, confidenceScore: 98 });
+      saveTelemetry({
+        id: 'log_' + Date.now(),
+        timestamp: nowIso,
+        createdAt: Date.now(),
+        query: message,
+        assignedAgentId: 'webb',
+        assignedAgentName: 'Webb — Live Market Verification',
+        latencyMs,
+        tokensUsed: estimateTokens(message + responseText),
+        confidence: 98,
+        status: 'SUCCESS',
+        policyCheck: 'POL-FINANCE-01: read-only market data; no trading action executed',
+        toolsInvokedCount: marketAnswer.uiActions.length + marketAnswer.quotes.length,
+        costEstimateUsd: 0,
+      });
+
+      return {
+        id: responseId,
+        text: responseText,
+        assignedAgent: null,
+        routingDecision,
+        toolCallTraces: marketAnswer.quotes.map((quote) => ({
+          toolId: 'live_crypto_market_data',
+          toolName: quote.source,
+          agentId: 'webb',
+          parameters: { symbol: quote.symbol, pair: quote.binanceSymbol },
+          result: quote,
+          status: 'SUCCESS' as const,
+          executionTimeMs: latencyMs,
+        })),
+        confidenceScore: 98,
+        latencyMs,
+        language,
+        memoryContextUsed: [],
+        uiActions: marketAnswer.uiActions,
+      };
+    }
   }
 
   // ── 1. Recuperación de memoria semántica relevante (Minerva) ──────────

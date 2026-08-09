@@ -67,6 +67,9 @@ async function main() {
   if (briefing.briefing?.alfred?.activeBaseAgents !== 12) throw new Error('Operational briefing active agents mismatch');
   if (briefing.briefing?.safety?.secretsInCode !== false) throw new Error('Operational briefing secret guard failed');
 
+  const market = await getJson('/api/market/crypto?asset=BTC');
+  if (!market.quotes?.[0]?.priceUsd || !market.uiActions?.some(a => String(a.url || '').includes('tradingview.com'))) throw new Error('Live crypto market verification missing');
+
   const businessRoute = await postJson('/api/business-agents/route', {
     message: 'Crear páginas y videos para clientes SaaS, clínicas e inmobiliarias con CreativeForge',
     limit: 4,

@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Mic, Send, Loader2, Volume2, ChevronDown, ChevronUp, Activity, Radio, ShieldCheck,
+  Mic, Send, Loader2, ChevronDown, ChevronUp, Activity, Radio, ShieldCheck,
   Sparkles, BrainCircuit, Aperture, Waves, Network, Shield, Zap, Mic2, Keyboard,
   RadioTower, Wand2, Palette, Clapperboard, BadgeDollarSign, Bot, Cpu, Power,
   Gauge, HardDrive, ServerCog, Clock3, CheckCircle2,
 } from 'lucide-react';
 import { Language, CoreState, Message, SubAgent, SecurityLevel } from '../types';
-import { playAudioTTS, playAcknowledgmentChime } from '../utils/audioTTS';
 import { AlfredWorldOrb3D } from './AlfredWorldOrb3D';
 
 interface Props {
@@ -17,6 +16,8 @@ interface Props {
   subAgents: SubAgent[];
   securityLevel: SecurityLevel;
   audioMuted: boolean;
+  embeddedMediaUrl: string | null;
+  onCloseEmbeddedMedia: () => void;
 }
 
 type PermissionStateLabel = 'unknown' | 'granted' | 'prompt' | 'denied' | 'unsupported';
@@ -83,6 +84,18 @@ function isAlfredGreetingCommand(text: string): boolean {
   return hasAlfred && hasGreeting;
 }
 
+function looksLikeAlfredEcho(recognized: string, messages: Message[]): boolean {
+  const spoken = normalizeVoiceText(recognized);
+  if (spoken.length < 10) return false;
+  const lastAlfred = [...messages].reverse().find(msg => msg.sender !== 'user');
+  if (!lastAlfred) return false;
+  const alfred = normalizeVoiceText(lastAlfred.text);
+  const echoLead = /^(entendido|comprendido|buenos dias|buenas tardes|buenas noches|jefe maestro)\b/.test(spoken);
+  const spokenHead = spoken.slice(0, Math.min(90, spoken.length));
+  const alfredHead = alfred.slice(0, Math.min(90, alfred.length));
+  return echoLead && (alfred.includes(spokenHead) || spoken.includes(alfredHead));
+}
+
 const STITCH_FUSION_PACKS = [
   { id: '00', name: 'Alfred Core', source: 'núcleo', effect: 'estado operativo · respuesta central · control general' },
   { id: '01', name: 'Alfred Voice', source: 'voz', effect: 'escucha · habla · confirmación al Jefe Maestro' },
@@ -96,7 +109,7 @@ const STITCH_FUSION_PACKS = [
   { id: '09', name: 'Alfred Presence', source: 'mayordomo', effect: 'servicio formal · Jefe Maestro · atención continua' },
 ];
 
-export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, onSendMessage, subAgents, securityLevel, audioMuted }) => {
+export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, onSendMessage, subAgents, securityLevel, audioMuted, embeddedMediaUrl, onCloseEmbeddedMedia }) => {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [handsFree, setHandsFree] = useState(false);
@@ -111,6 +124,8 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
   const autoStartAttemptedRef = useRef(false);
   const recognitionRestartTimerRef = useRef<number | null>(null);
   const recognitionStartingRef = useRef(false);
+  const routineActivationSentRef = useRef(false);
+  const conversationUntilRef = useRef(0);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -236,12 +251,18 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       }
       setLiveTranscript(interim || finalText);
       if (finalText.trim()) {
+        if (looksLikeAlfredEcho(finalText, messages)) {
+          setLiveTranscript('Eco de Alfred ignorado para evitar bucle.');
+          return;
+        }
         const lower = finalText.toLowerCase();
         const isGreetingCommand = isAlfredGreetingCommand(finalText);
         const withoutWake = WAKE_WORDS.reduce((text, wake) => text.replace(wake, ''), lower).trim();
         const isWakeCommand = WAKE_WORDS.some(w => lower.includes(w));
+        const inConversationWindow = conversationUntilRef.current > Date.now();
         if (!isGreetingCommand && runVoiceShortcut(withoutWake || finalText)) return;
-        if (continuous && !isWakeCommand && !isGreetingCommand) return;
+        if (isWakeCommand || isGreetingCommand) conversationUntilRef.current = Date.now() + 45_000;
+        if (continuous && !isWakeCommand && !isGreetingCommand && !inConversationWindow) return;
         const spoken = isGreetingCommand ? finalText.trim() : (isWakeCommand ? withoutWake : finalText.trim());
         if (spoken) {
           setInput(spoken);
@@ -290,7 +311,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       setIsListening(false);
       return false;
     }
-  }, [language, permissionState, handleSend, runVoiceShortcut]);
+  }, [language, permissionState, handleSend, runVoiceShortcut, messages]);
 
   useEffect(() => {
     if (permissionState !== 'granted' || handsFree || autoStartAttemptedRef.current) return;
@@ -302,6 +323,11 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       if (!started) {
         handsFreeRef.current = false;
         setHandsFree(false);
+        return;
+      }
+      if (!routineActivationSentRef.current) {
+        routineActivationSentRef.current = true;
+        handleSend('Alfred, activa mi rutina diaria');
       }
     });
   }, [permissionState, handsFree, startRecognition]);
@@ -322,6 +348,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       setHandsFree(false);
       recognitionRef.current?.stop?.();
       setIsListening(false);
+      routineActivationSentRef.current = false;
       return;
     }
     handsFreeRef.current = true;
@@ -331,6 +358,11 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
     if (!started) {
       handsFreeRef.current = false;
       setHandsFree(false);
+      return;
+    }
+    if (!routineActivationSentRef.current) {
+      routineActivationSentRef.current = true;
+      handleSend('Alfred, activa mi rutina diaria');
     }
   };
 
@@ -342,11 +374,6 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
     SPEAKING: language === 'es' ? 'RESPONDIENDO' : 'SPEAKING',
     ERROR: 'ERROR',
   }[coreState];
-
-  const speak = (text: string) => {
-    playAcknowledgmentChime();
-    playAudioTTS(text, language, () => undefined);
-  };
 
   return (
     <div className="v3-command-bridge">
@@ -471,15 +498,11 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
                       <time>{msg.timestamp}</time>
                     </div>
                     <p>{msg.text}</p>
-                    {msg.sender !== 'user' && (
-                      <div className="v3-message-actions">
-                        {hasReasoning && (
-                          <button onClick={() => setExpandedReasoning(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))} data-voice-command="show reasoning">
-                            {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {language === 'es' ? 'Razonamiento' : 'Reasoning'}
-                          </button>
-                        )}
-                        <button onClick={() => speak(msg.text)} data-voice-command="play voice"><Volume2 size={12} /> {language === 'es' ? 'Voz' : 'Voice'}</button>
-                        {msg.confidenceScore && <span>CONFIDENCE {msg.confidenceScore}%</span>}
+                    {msg.sender !== 'user' && hasReasoning && (
+                      <div className="v3-message-actions compact">
+                        <button onClick={() => setExpandedReasoning(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))} data-voice-command="show reasoning">
+                          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />} {language === 'es' ? 'Detalles técnicos' : 'Technical details'}
+                        </button>
                       </div>
                     )}
                     {expanded && msg.routingDecision && (
@@ -546,6 +569,20 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
           </div>
         </aside>
       </section>
+
+      {embeddedMediaUrl && (
+        <section className="v3-media-deck" aria-label="Reproductor de música de Alfred">
+          <div className="v3-media-deck-head">
+            <div>
+              <div className="v3-eyebrow small"><Radio size={13} /> ALFRED MEDIA CORE</div>
+              <h3>Música de la rutina diaria</h3>
+              <p>Reproductor completo abajo · YouTube integrado · volumen moderado cuando el navegador lo permite.</p>
+            </div>
+            <button type="button" onClick={onCloseEmbeddedMedia} aria-label="Cerrar reproductor">Cerrar</button>
+          </div>
+          <iframe title="Música de la rutina diaria de Alfred" src={embeddedMediaUrl} allow="autoplay; encrypted-media" className="v3-media-frame" />
+        </section>
+      )}
     </div>
   );
 };

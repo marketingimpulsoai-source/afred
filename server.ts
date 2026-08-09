@@ -19,6 +19,7 @@ import { getRevenueCatMcpStatus, buildHermesRevenueCatMcpConfigTemplate } from '
 import { getMediaRouterStatus, routeMediaRequest } from './src/data/mediaRouter';
 import { getAlfredV3ApiStatus } from './src/integrations/alfredV3Apis';
 import { getOperationalBriefing } from './src/integrations/operationalBriefing';
+import { buildCryptoMarketAnswer } from './src/alfred_core/marketData';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,6 +87,14 @@ app.get('/api/alfred-v3/status', (req, res) => {
 
 app.get('/api/briefing', (req, res) => {
   res.json({ briefing: getOperationalBriefing() });
+});
+
+app.get('/api/market/crypto', async (req, res) => {
+  const asset = typeof req.query.asset === 'string' ? req.query.asset : 'BTC ETH SOL';
+  const language = req.query.language === 'en' ? 'en' : 'es';
+  const result = await buildCryptoMarketAnswer(asset, language);
+  if (!result) return res.status(404).json({ error: 'No crypto asset detected' });
+  res.json(result);
 });
 
 app.get('/api/integrations/revenuecat', (req, res) => {
