@@ -40,6 +40,19 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 
+CREATE TABLE IF NOT EXISTS agent_work_log (
+  id TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL,
+  query TEXT NOT NULL,
+  assigned_agent_id TEXT NOT NULL,
+  assigned_agent_name TEXT NOT NULL,
+  status TEXT NOT NULL,
+  latency_ms INTEGER NOT NULL,
+  tools_invoked_count INTEGER NOT NULL,
+  summary TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_agent_work_created ON agent_work_log(created_at);
+
 CREATE TABLE IF NOT EXISTS memory_records (
   id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL,
@@ -274,6 +287,26 @@ export function saveTelemetry(log: any): void {
 
 export function getRecentTelemetry(limit = 50): any[] {
   return db.prepare(`SELECT * FROM telemetry ORDER BY created_at DESC LIMIT ?`).all(limit);
+}
+
+export function getAgentWorkReport(from: number, to: number): any[] {
+  return db.prepare(`
+    SELECT created_at AS createdAt, query, assigned_agent_id AS agentId,
+      assigned_agent_name AS agentName, status, latency_ms AS latencyMs,
+      tools_invoked_count AS toolsInvokedCount, summary
+    FROM agent_work_log WHERE created_at >= ? AND created_at < ? ORDER BY created_at ASC
+  `).all(from, to);
+}
+
+export function saveAgentWork(log: {
+  id: string; createdAt: number; query: string; assignedAgentId: string;
+  assignedAgentName: string; status: string; latencyMs: number;
+  toolsInvokedCount: number; summary: string;
+}): void {
+  db.prepare(`INSERT OR REPLACE INTO agent_work_log
+    (id, created_at, query, assigned_agent_id, assigned_agent_name, status, latency_ms, tools_invoked_count, summary)
+    VALUES (@id, @createdAt, @query, @assignedAgentId, @assignedAgentName, @status, @latencyMs, @toolsInvokedCount, @summary)`
+  ).run(log);
 }
 
 export function getTotalQueriesProcessed(): number {

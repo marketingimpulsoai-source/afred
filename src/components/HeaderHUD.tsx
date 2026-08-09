@@ -25,11 +25,9 @@ const TABS_ES: Record<TabId, string> = {
   policies: 'SEGURIDAD',
   observability: 'OBSERVA',
   architecture: 'ARQ',
-  biometric: 'BIOMETRÍA',
   settings: 'AJUSTES',
   docs: 'ARCHIVO',
   network: 'NEURAL',
-  mobile: 'MÓVIL',
   memory: 'MEMORIA',
 };
 const TABS_EN: Record<TabId, string> = {
@@ -41,11 +39,9 @@ const TABS_EN: Record<TabId, string> = {
   policies: 'SECURITY',
   observability: 'OBSERVE',
   architecture: 'ARCH',
-  biometric: 'BIOMETRIC',
   settings: 'SETTINGS',
   docs: 'ARCHIVE',
   network: 'NEURAL',
-  mobile: 'MOBILE',
   memory: 'MEMORY',
 };
 
@@ -63,7 +59,7 @@ export const HeaderHUD: React.FC<Props> = ({
         <div className="flex flex-col 2xl:flex-row gap-4 2xl:items-center 2xl:justify-between">
           <div className="flex items-center gap-4 min-w-0">
             <div className="v3-logo-orb world" aria-label="ALFRED CORP V3.5 World Core">
-              <AlfredWorldOrb3D size="mini" active={coreState === 'LISTENING' || coreState === 'SPEAKING'} label="ALFRED mini world core" />
+              <AlfredWorldOrb3D size="mini" active={coreState !== 'IDLE'} motion={coreState === 'ROUTING' || coreState === 'PROCESSING' ? 'working' : coreState === 'LISTENING' || coreState === 'SPEAKING' ? 'conversation' : 'idle'} label="ALFRED mini world core" />
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-end gap-3">

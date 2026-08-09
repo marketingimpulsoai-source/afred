@@ -10,7 +10,7 @@ import { getLLMProvider } from './llmProvider';
 import { buildAlfredSystemPrompt, enforcePersonalityRules, nextAcknowledgment } from './personality';
 import { getAgentById, AGENT_TOOLS } from '../data/alfredData';
 import { findBusinessMatches } from '../data/businessAgents';
-import { searchMemory, saveMessage, saveTelemetry, getTotalQueriesProcessed } from './memory';
+import { searchMemory, saveMessage, saveTelemetry, saveAgentWork, getTotalQueriesProcessed } from './memory';
 import { getToolHandler } from '../skills/toolRegistry';
 import { detectDailyActivationRoutine, buildDailyRoutineRoutingDecision } from './dailyActivationRoutines';
 
@@ -222,6 +222,20 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
     toolsInvokedCount: toolCallTraces.length,
     costEstimateUsd: estimateCostUsd(tokensUsed, llm.modelName()),
   });
+
+  if (assignedAgent) {
+    saveAgentWork({
+      id: `work_${responseId}`,
+      createdAt: Date.now(),
+      query: message,
+      assignedAgentId: assignedAgent.id,
+      assignedAgentName: language === 'es' ? assignedAgent.nameES : assignedAgent.nameEN,
+      status: toolCallTraces.some(trace => trace.status === 'ERROR') ? 'ERROR' : 'SUCCESS',
+      latencyMs,
+      toolsInvokedCount: toolCallTraces.length,
+      summary: responseText.slice(0, 500),
+    });
+  }
 
   return {
     id: responseId,

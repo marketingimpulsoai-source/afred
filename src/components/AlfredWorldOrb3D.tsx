@@ -1,9 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { OrbMotionLevel } from '../types';
 
 interface AlfredWorldOrb3DProps {
   size?: 'mini' | 'hero' | 'panel';
   active?: boolean;
+  motion?: OrbMotionLevel;
   label?: string;
   className?: string;
 }
@@ -31,23 +33,24 @@ function buildWorldNodes(count: number, radius: number): Float32Array {
 export const AlfredWorldOrb3D: React.FC<AlfredWorldOrb3DProps> = ({
   size = 'hero',
   active = false,
+  motion = active ? 'conversation' : 'idle',
   label = 'ALFRED 3D WORLD',
   className = '',
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const motionRef = useRef(active ? 2.15 : 0.72);
+  const motionRef = useRef(motion === 'working' ? 3.6 : motion === 'conversation' ? 1.45 : 0.52);
 
   useEffect(() => {
-    motionRef.current = active ? 2.15 : 0.72;
-  }, [active]);
+    motionRef.current = motion === 'working' ? 3.6 : motion === 'conversation' ? 1.45 : 0.52;
+  }, [motion]);
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-    camera.position.z = 2.58;
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+    camera.position.z = 4;
 
     const renderer = new THREE.WebGLRenderer({
       alpha: true,
@@ -98,8 +101,15 @@ export const AlfredWorldOrb3D: React.FC<AlfredWorldOrb3DProps> = ({
       const width = Math.max(80, Math.floor(rect.width));
       const height = Math.max(80, Math.floor(rect.height));
       renderer.setSize(width, height, false);
-      camera.aspect = width / height;
+      const fit = Math.max(0.55, Math.min(width, height) / Math.max(width, height));
+      const viewHeight = 2.34;
+      const viewWidth = viewHeight * (width / height);
+      camera.left = -viewWidth / 2;
+      camera.right = viewWidth / 2;
+      camera.top = viewHeight / 2;
+      camera.bottom = -viewHeight / 2;
       camera.updateProjectionMatrix();
+      world.scale.setScalar(Math.min(1, fit + 0.35));
     };
 
     const animate = (now: number) => {

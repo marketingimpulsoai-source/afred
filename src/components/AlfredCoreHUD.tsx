@@ -165,6 +165,14 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
     }
   };
 
+  useEffect(() => {
+    if (autoStartAttemptedRef.current || window.location.protocol === 'file:') return;
+    if (localStorage.getItem(AUTO_HANDS_FREE_KEY) === 'false') return;
+    requestMicAccess().then(granted => {
+      if (!granted) setLiveTranscript(language === 'es' ? 'Conceda acceso al micrófono para mantener a Alfred comunicado.' : 'Grant microphone access to keep Alfred connected.');
+    });
+  }, []);
+
   const runVoiceShortcut = useCallback((command: string) => {
     const normalized = command.toLowerCase().trim();
     setLastVoiceCommand(command);
@@ -342,7 +350,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
             aria-label={language === 'es' ? 'Activar mundo 3D manos libres de Alfred' : 'Activate Alfred hands-free 3D world'}
             data-voice-command="activate hands free"
           >
-            <AlfredWorldOrb3D size="hero" active={isListening || coreState === 'PROCESSING' || coreState === 'ROUTING' || coreState === 'SPEAKING'} label="ALFRED 3D world orb" />
+            <AlfredWorldOrb3D size="hero" active={coreState !== 'IDLE'} motion={coreState === 'ROUTING' || coreState === 'PROCESSING' ? 'working' : coreState === 'LISTENING' || coreState === 'SPEAKING' ? 'conversation' : 'idle'} label="ALFRED 3D world orb" />
           </button>
           <div className="v3-permission-readout">
             <Metric label="MIC" value={permissionState.toUpperCase()} />

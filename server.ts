@@ -9,7 +9,8 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { processUserRequest, getUptimeSeconds, getTotalQueries } from './src/alfred_core/supervisor';
 import { getLLMProvider } from './src/alfred_core/llmProvider';
-import { getMessagesBySession, getMessagesByDay, getConversationDays, getRecentTelemetry } from './src/alfred_core/memory';
+import { getMessagesBySession, getMessagesByDay, getConversationDays, getRecentTelemetry, getAgentWorkReport } from './src/alfred_core/memory';
+import PDFDocument from 'pdfkit';
 import { SUB_AGENTS, AGENT_TOOLS, SAFETY_POLICIES } from './src/data/alfredData';
 import { BUSINESS_AGENTS, CLIENT_SEGMENTS, PAGE_VIDEO_FACTORY, findBusinessMatches } from './src/data/businessAgents';
 import { ALFRED_MEMORY_PREFERENCES } from './src/data/alfredMemoryPreferences';
@@ -155,6 +156,43 @@ app.get('/api/history-day/:day', (req, res) => {
   const sessionId = typeof req.query.sessionId === 'string' ? req.query.sessionId : undefined;
   const messages = getMessagesByDay(req.params.day, sessionId, 1000);
   res.json({ day: req.params.day, sessionId: sessionId || null, messages });
+});
+
+app.get('/api/agent-work', (req, res) => {
+  const now = new Date();
+  const end = typeof req.query.to === 'string' ? new Date(`${req.query.to}T00:00:00`).getTime() : now.getTime() + 1;
+  const from = typeof req.query.from === 'string'
+    ? new Date(`${req.query.from}T00:00:00`).getTime()
+    : end - 7 * 24 * 60 * 60 * 1000;
+  const work = getAgentWorkReport(from, end);
+  res.json({ from: new Date(from).toISOString(), to: new Date(end).toISOString(), work });
+});
+
+app.get('/api/agent-work.pdf', (req, res) => {
+  const now = new Date();
+  const end = typeof req.query.to === 'string' ? new Date(`${req.query.to}T00:00:00`).getTime() : now.getTime() + 1;
+  const from = typeof req.query.from === 'string'
+    ? new Date(`${req.query.from}T00:00:00`).getTime()
+    : end - 7 * 24 * 60 * 60 * 1000;
+  const work = getAgentWorkReport(from, end);
+  const chunks: Buffer[] = [];
+  const doc = new PDFDocument({ margin: 42, size: 'A4' });
+  doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+  doc.on('end', () => {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="alfred-subagents-${new Date(from).toISOString().slice(0, 10)}.pdf"`);
+    res.send(Buffer.concat(chunks));
+  });
+  doc.fontSize(20).fillColor('#102a43').text('ALFRED - Reporte de subagentes');
+  doc.moveDown(0.4).fontSize(10).fillColor('#52606d').text(`Periodo: ${new Date(from).toLocaleDateString()} - ${new Date(end).toLocaleDateString()}`);
+  doc.moveDown().fontSize(11).fillColor('#102a43').text(`Trabajos registrados: ${work.length}`);
+  work.forEach((item: any, index: number) => {
+    doc.moveDown(0.7).fontSize(11).fillColor('#0b7285').text(`${index + 1}. ${item.agentName} - ${item.status}`);
+    doc.fontSize(9).fillColor('#243b53').text(`Fecha: ${new Date(item.createdAt).toLocaleString()} | Latencia: ${item.latencyMs} ms | Herramientas: ${item.toolsInvokedCount}`);
+    doc.fontSize(9).fillColor('#334e68').text(`Orden: ${item.query}`);
+    doc.fontSize(9).fillColor('#486581').text(`Resultado: ${item.summary}`);
+  });
+  doc.end();
 });
 
 // ── Chat principal — Orquestación real ──────────────────────────────────

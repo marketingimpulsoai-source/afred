@@ -105,7 +105,7 @@
 .v3-hero-bridge,.v3-chat-shell,.v3-mini-panel,.v3-status-card {
   position:relative; overflow:hidden; border:1px solid rgba(219,252,255,0.16); border-radius:4px; background:linear-gradient(135deg,rgba(19,19,20,0.78),rgba(10,10,11,0.76)), radial-gradient(circle at top left,rgba(0,240,255,0.14),transparent 36%), radial-gradient(circle at bottom right,rgba(138,43,226,0.16),transparent 40%); box-shadow:0 30px 96px rgba(0,0,0,0.36), inset 0 0 0 1px rgba(255,255,255,0.035); backdrop-filter:blur(24px) saturate(1.36);
 }
-.v3-hero-bridge { display:grid; grid-template-columns:minmax(0,1.1fr) 440px; gap:2rem; min-height:480px; padding:clamp(1.25rem,2.7vw,2.9rem); }
+.v3-hero-bridge { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,440px); gap:2rem; min-height:480px; padding:clamp(1.25rem,2.7vw,2.9rem); }
 .v3-hero-bridge::before,.v3-chat-shell::before,.v3-mini-panel::before { content:''; position:absolute; inset:0; pointer-events:none; background:linear-gradient(112deg,transparent 0 42%,rgba(255,255,255,0.06) 48%,transparent 54%); transform:translateX(-60%); animation:v3-sheen 8.5s ease-in-out infinite; }
 @keyframes v3-sheen { 0%,45% { transform:translateX(-65%); } 75%,100% { transform:translateX(70%); } }
 .v3-hero-copy { position:relative; z-index:1; align-self:center; }

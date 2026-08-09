@@ -8,7 +8,7 @@ import { ObservabilityDashboard } from './components/ObservabilityDashboard';
 import { DocsArchitecture } from './components/DocsArchitecture';
 import { NeuralNetworkMap } from './components/NeuralNetworkMap';
 import { ToastNotification, Toast } from './components/ToastNotification';
-import { MemoryVault, BiometricLogin, SettingsPanel, MobileHUD, ArchitectureDeepDive } from './components/EnhancedPanels';
+import { MemoryVault, SettingsPanel, ArchitectureDeepDive } from './components/EnhancedPanels';
 import { BusinessAgentsCommand } from './components/BusinessAgentsCommand';
 import { MediaCommandCenter } from './components/MediaCommandCenter';
 import { Language, SecurityLevel, CoreState, Message, SubAgent, TabId, UiAction } from './types';
@@ -38,6 +38,7 @@ export default function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId] = useState<string>(getOrCreateSessionId());
+  const [agentActivityVersion, setAgentActivityVersion] = useState(0);
 
   const addToast = (message: string, agentName?: string) => {
     setToasts(prev => [...prev, { id: Date.now().toString(), message, agentName }]);
@@ -154,6 +155,7 @@ export default function App() {
       };
 
       if (data.assignedAgent) {
+        setAgentActivityVersion(version => version + 1);
         const agentName = language === 'es' ? data.assignedAgent.nameES : data.assignedAgent.nameEN;
         addToast(
           language === 'es' ? `Delegando tarea a ${agentName}` : `Delegating task to ${agentName}`,
@@ -232,11 +234,9 @@ export default function App() {
         {activeTab === 'policies' && <PoliciesGuardrails language={language} />}
         {activeTab === 'observability' && <ObservabilityDashboard language={language} />}
         {activeTab === 'architecture' && <ArchitectureDeepDive language={language} />}
-        {activeTab === 'biometric' && <BiometricLogin language={language} />}
         {activeTab === 'settings' && <SettingsPanel language={language} />}
-        {activeTab === 'network' && <NeuralNetworkMap language={language} subAgents={subAgents} />}
+        {activeTab === 'network' && <NeuralNetworkMap language={language} subAgents={subAgents} activityVersion={agentActivityVersion} />}
         {activeTab === 'memory' && <MemoryVault language={language} />}
-        {activeTab === 'mobile' && <MobileHUD language={language} />}
         {activeTab === 'docs' && <DocsArchitecture language={language} />}
       </main>
 

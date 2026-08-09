@@ -1,6 +1,7 @@
 export type Language = 'es' | 'en';
 export type SecurityLevel = 'STRICT' | 'BALANCED' | 'DEV';
 export type CoreState = 'IDLE' | 'LISTENING' | 'PROCESSING' | 'ROUTING' | 'SPEAKING' | 'ERROR';
+export type OrbMotionLevel = 'idle' | 'conversation' | 'working';
 export type AgentStatus = 'ACTIVE' | 'BUSY' | 'STANDBY' | 'OFFLINE';
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type SafetyAction = 'ALLOW' | 'REQUIRE_CONFIRMATION' | 'BLOCK';
@@ -13,11 +14,9 @@ export type TabId =
   | 'policies'
   | 'observability'
   | 'architecture'
-  | 'biometric'
   | 'settings'
   | 'docs'
   | 'network'
-  | 'mobile'
   | 'memory';
 
 export interface SubAgent {
