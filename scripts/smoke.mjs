@@ -214,6 +214,14 @@ async function main() {
   const startupSource = readFileSync(startupLauncher, 'utf8');
   if (!startupSource.includes('windows-alfred-voice-bridge.ps1')) throw new Error('Startup launcher does not start voice bridge');
 
+  const coreHudSource = readFileSync('src/components/AlfredCoreHUD.tsx', 'utf8');
+  if (!coreHudSource.includes('CHAT_RECENT_LIMIT = 6') || !coreHudSource.includes('Ver texto anterior')) {
+    throw new Error('Compact chat previous-preview control missing');
+  }
+  if (!coreHudSource.includes('textOverlapScore') || !coreHudSource.includes('que activo en especifico')) {
+    throw new Error('Enhanced Alfred echo suppression missing');
+  }
+
   console.log('SMOKE OK');
   console.log(`Provider: ${health.llmProvider} (${health.llmModel})`);
   console.log(`Agents: ${agents.agents.length} total / ${active} active`);

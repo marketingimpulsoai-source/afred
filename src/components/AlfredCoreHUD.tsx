@@ -74,6 +74,7 @@ const QUICK_EN = [
 
 const WAKE_WORDS = ['alfred', 'hey alfred', 'oye alfred', 'que mundo', 'qué mundo', 'llego papi', 'jefe maestro'];
 const AUTO_HANDS_FREE_KEY = 'alfred_auto_hands_free_enabled';
+const CHAT_RECENT_LIMIT = 6;
 
 function normalizeVoiceText(text: string): string {
   return text
@@ -92,16 +93,31 @@ function isAlfredGreetingCommand(text: string): boolean {
   return hasAlfred && hasGreeting;
 }
 
+function textOverlapScore(a: string, b: string): number {
+  const aWords = new Set(a.split(' ').filter(word => word.length > 3));
+  const bWords = b.split(' ').filter(word => word.length > 3);
+  if (!aWords.size || !bWords.length) return 0;
+  const hits = bWords.filter(word => aWords.has(word)).length;
+  return hits / Math.max(aWords.size, bWords.length);
+}
+
 function looksLikeAlfredEcho(recognized: string, messages: Message[]): boolean {
   const spoken = normalizeVoiceText(recognized);
   if (spoken.length < 10) return false;
-  const lastAlfred = [...messages].reverse().find(msg => msg.sender !== 'user');
-  if (!lastAlfred) return false;
-  const alfred = normalizeVoiceText(lastAlfred.text);
-  const echoLead = /^(entendido|comprendido|buenos dias|buenas tardes|buenas noches|jefe maestro)\b/.test(spoken);
-  const spokenHead = spoken.slice(0, Math.min(90, spoken.length));
-  const alfredHead = alfred.slice(0, Math.min(90, alfred.length));
-  return echoLead && (alfred.includes(spokenHead) || spoken.includes(alfredHead));
+  const echoLead = /^(entendido|comprendido|buenos dias|buenas tardes|buenas noches|jefe maestro|estoy listo|estoy aqui|he registrado|activare|abrire)\b/.test(spoken);
+  const repeatedSystemPhrase = /\b(motor de lenguaje principal no esta disponible|configure una clave de api|que activo en especifico|webb verifique|api de binance|estoy listo y a su servicio|estoy aqui con usted|solicitar[eé] confirmaci[oó]n humana)\b/.test(spoken);
+  const recentAlfred = [...messages].reverse().filter(msg => msg.sender !== 'user').slice(0, 6);
+  if (!recentAlfred.length) return repeatedSystemPhrase;
+  const spokenHead = spoken.slice(0, Math.min(120, spoken.length));
+  return recentAlfred.some((msg) => {
+    const alfred = normalizeVoiceText(msg.text);
+    const alfredHead = alfred.slice(0, Math.min(120, alfred.length));
+    return (
+      (echoLead && (alfred.includes(spokenHead) || spoken.includes(alfredHead))) ||
+      (echoLead && textOverlapScore(alfred, spoken) > 0.42) ||
+      (repeatedSystemPhrase && textOverlapScore(alfred, spoken) > 0.28)
+    );
+  });
 }
 
 const STITCH_FUSION_PACKS = [
@@ -131,6 +147,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
   const [selectedHistoryDay, setSelectedHistoryDay] = useState<string>('live');
   const [dayMessages, setDayMessages] = useState<Message[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [showPreviousPreview, setShowPreviousPreview] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const handsFreeRef = useRef(false);
@@ -150,6 +167,10 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       .then(data => setConversationDays(Array.isArray(data.days) ? data.days : []))
       .catch(() => setConversationDays([]));
   }, [messages.length]);
+
+  useEffect(() => {
+    setShowPreviousPreview(false);
+  }, [selectedHistoryDay]);
 
   useEffect(() => {
     if (selectedHistoryDay === 'live') {
@@ -200,6 +221,9 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
   const quickPrompts = language === 'es' ? QUICK_ES : QUICK_EN;
   const visibleMessages = selectedHistoryDay === 'live' ? messages : dayMessages;
   const selectedDayCount = selectedHistoryDay === 'live' ? messages.length : dayMessages.length;
+  const hiddenPreviousCount = Math.max(visibleMessages.length - CHAT_RECENT_LIMIT, 0);
+  const previousPreviewMessages = visibleMessages.slice(0, hiddenPreviousCount);
+  const currentMessages = showPreviousPreview ? visibleMessages : visibleMessages.slice(-CHAT_RECENT_LIMIT);
 
   const handleSend = useCallback((override?: string) => {
     const text = (override ?? input).trim();
@@ -538,6 +562,25 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
           </div>
 
           <div ref={scrollRef} className="v3-message-stream">
+            {hiddenPreviousCount > 0 && (
+              <button type="button" className="v3-previous-preview-button" onClick={() => setShowPreviousPreview(prev => !prev)}>
+                {showPreviousPreview ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                {showPreviousPreview
+                  ? 'Ocultar texto anterior'
+                  : `Ver texto anterior (${hiddenPreviousCount} mensajes guardados)`}
+              </button>
+            )}
+            {showPreviousPreview && previousPreviewMessages.length > 0 && (
+              <div className="v3-previous-preview-panel" aria-label="Texto anterior guardado">
+                {previousPreviewMessages.slice(-8).map((msg) => (
+                  <div key={`preview_${msg.id}`} className="v3-preview-line">
+                    <b>{msg.sender === 'user' ? 'JEFE MAESTRO' : (msg.agentName || 'ALFRED')}</b>
+                    <span>{msg.text.slice(0, 180)}{msg.text.length > 180 ? '…' : ''}</span>
+                  </div>
+                ))}
+                {previousPreviewMessages.length > 8 && <small>Mostrando últimos 8 del texto anterior. El PDF conserva todo el día completo.</small>}
+              </div>
+            )}
             {historyLoading && (
               <div className="v3-thinking-line">
                 <Loader2 size={13} className="animate-spin" /> Cargando conversación completa del día...
@@ -548,7 +591,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
                 <CalendarDays size={13} /> No hay conversación guardada para este día.
               </div>
             )}
-            {visibleMessages.map((msg) => {
+            {currentMessages.map((msg) => {
               const hasReasoning = !!msg.routingDecision || !!msg.confidenceScore || !!msg.toolCalls?.length;
               const expanded = expandedReasoning[msg.id];
               return (
