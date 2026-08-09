@@ -109,6 +109,8 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
   const recognitionRef = useRef<any>(null);
   const handsFreeRef = useRef(false);
   const autoStartAttemptedRef = useRef(false);
+  const recognitionRestartTimerRef = useRef<number | null>(null);
+  const recognitionStartingRef = useRef(false);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -138,6 +140,14 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
     checkPermission();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (recognitionRestartTimerRef.current !== null) window.clearTimeout(recognitionRestartTimerRef.current);
+      handsFreeRef.current = false;
+      recognitionRef.current?.stop?.();
+    };
+  }, []);
+
   const activeCount = subAgents.filter(a => a.status === 'ACTIVE').length;
   const quickPrompts = language === 'es' ? QUICK_ES : QUICK_EN;
 
@@ -154,7 +164,9 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
         setPermissionState('unsupported');
         return false;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      });
       stream.getTracks().forEach(track => track.stop());
       localStorage.setItem(AUTO_HANDS_FREE_KEY, 'true');
       setPermissionState('granted');
@@ -206,7 +218,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       return false;
     }
     const ok = permissionState === 'granted' || await requestMicAccess();
-    if (!ok) return false;
+    if (!ok || recognitionStartingRef.current) return false;
 
     recognitionRef.current?.stop?.();
     const recognition = new SpeechRecognition();
@@ -239,6 +251,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
     };
     recognition.onerror = (event: any) => {
       const error = event?.error || 'unknown';
+      recognitionStartingRef.current = false;
       setLiveTranscript(language === 'es' ? `Micrófono: ${error}` : `Microphone: ${error}`);
       setIsListening(false);
       if (!continuous || ['not-allowed', 'service-not-allowed', 'audio-capture'].includes(error)) {
@@ -248,18 +261,31 @@ export const AlfredCoreHUD: React.FC<Props> = ({ language, coreState, messages, 
       }
     };
     recognition.onend = () => {
+      recognitionStartingRef.current = false;
       setIsListening(false);
       if (continuous && handsFreeRef.current) {
-        setTimeout(() => startRecognition(true), 350);
+        if (recognitionRestartTimerRef.current !== null) window.clearTimeout(recognitionRestartTimerRef.current);
+        recognitionRestartTimerRef.current = window.setTimeout(() => {
+          if (!handsFreeRef.current || recognitionStartingRef.current) return;
+          try {
+            recognition.start();
+            recognitionStartingRef.current = true;
+            setIsListening(true);
+          } catch {
+            setIsListening(false);
+          }
+        }, 700);
       }
     };
     recognitionRef.current = recognition;
     try {
+      recognitionStartingRef.current = true;
       recognition.start();
       setIsListening(true);
       setLiveTranscript(language === 'es' ? 'Alfred escuchando. Diga “Buenos días Alfred”, “Buenas tardes Alfred” o “Buenas noches Alfred”.' : 'Alfred is listening. Say “Good morning Alfred”, “Good afternoon Alfred”, or “Good evening Alfred”.');
       return true;
     } catch (error) {
+      recognitionStartingRef.current = false;
       console.warn('[Alfred Voice] recognition.start failed', error);
       setIsListening(false);
       return false;

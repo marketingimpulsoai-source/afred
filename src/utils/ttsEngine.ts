@@ -7,6 +7,7 @@
 //   model_id: eleven_multilingual_v2
 // ═══════════════════════════════════════════════════════════════════════
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
+import OpenAI from 'openai';
 import { Language } from '../types';
 
 interface TTSResult {
@@ -14,7 +15,7 @@ interface TTSResult {
   format?: string;
   sampleRate?: number;
   useWebSpeechFallback: boolean;
-  provider?: 'elevenlabs' | 'gemini' | 'web_speech';
+  provider?: 'elevenlabs' | 'gemini' | 'openai' | 'web_speech';
   voiceId?: string;
   modelId?: string;
 }
@@ -24,6 +25,23 @@ const ELEVENLABS_VOICE_ID = process.env.ALFRED_TTS_VOICE_ID || '89gcX1AeMGgcsN8y
 const ELEVENLABS_MODEL = process.env.ALFRED_TTS_MODEL_ID || 'eleven_multilingual_v2';
 const ELEVENLABS_OUTPUT_FORMAT = process.env.ALFRED_TTS_OUTPUT_FORMAT || 'mp3_44100_128';
 const GEMINI_TTS_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+const ttsCooldownUntil: Record<string, number> = {};
+
+function providerAvailable(provider: string): boolean {
+  return (ttsCooldownUntil[provider] || 0) <= Date.now();
+}
+
+function coolDownProvider(provider: string, status: unknown): void {
+  const code = Number(status);
+  if ([400, 401, 402, 403, 429, 500, 503].includes(code)) {
+    ttsCooldownUntil[provider] = Date.now() + (code === 429 ? 60_000 : 120_000);
+  }
+}
+
+function statusCode(error: unknown): number | undefined {
+  const candidate = error as { statusCode?: number; status?: number };
+  return candidate?.statusCode || candidate?.status;
+}
 
 async function streamToBase64(stream: ReadableStream<Uint8Array>): Promise<string> {
   const arrayBuffer = await new Response(stream).arrayBuffer();
@@ -32,7 +50,7 @@ async function streamToBase64(stream: ReadableStream<Uint8Array>): Promise<strin
 
 async function tryElevenLabs(text: string, language: Language): Promise<TTSResult | null> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey || !providerAvailable('elevenlabs')) return null;
 
   try {
     const client = new ElevenLabsClient({ apiKey });
@@ -64,13 +82,15 @@ async function tryElevenLabs(text: string, language: Language): Promise<TTSResul
       modelId: ELEVENLABS_MODEL,
     };
   } catch (err) {
-    console.warn(`[TTS] Falla de ElevenLabs para agent ${ELEVENLABS_AGENT_ID}:`, err);
+    const code = statusCode(err);
+    coolDownProvider('elevenlabs', code);
+    console.warn(`[TTS] ElevenLabs unavailable (${code || 'request error'}); rotating provider.`);
     return null;
   }
 }
 
 async function tryGeminiTTS(text: string): Promise<TTSResult | null> {
-  if (!GEMINI_TTS_API_KEY) return null;
+  if (!GEMINI_TTS_API_KEY || !providerAvailable('gemini')) return null;
 
   try {
     const { GoogleGenAI } = await import('@google/genai');
@@ -93,25 +113,53 @@ async function tryGeminiTTS(text: string): Promise<TTSResult | null> {
     }
     return null;
   } catch (err) {
-    console.warn('[TTS] Falla de Gemini TTS:', err);
+    const code = statusCode(err);
+    coolDownProvider('gemini', code);
+    console.warn(`[TTS] Gemini unavailable (${code || 'request error'}); rotating provider.`);
+    return null;
+  }
+}
+
+async function tryOpenAITTS(text: string, language: Language): Promise<TTSResult | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey || !providerAvailable('openai')) return null;
+  try {
+    const client = new OpenAI({ apiKey });
+    const speech = await client.audio.speech.create({
+      model: process.env.ALFRED_OPENAI_TTS_MODEL || 'gpt-4o-mini-tts',
+      voice: process.env.ALFRED_OPENAI_TTS_VOICE || 'onyx',
+      input: text.slice(0, 2500),
+      instructions: language === 'es'
+        ? 'Voz masculina natural, cálida, sobria y fluida. Habla como un mayordomo profesional llamado Alfred. Pronuncia español neutro con pausas humanas, sin sonar robótico.'
+        : 'Natural, warm, calm masculine voice. Speak as a professional butler named Alfred, with human pacing and no robotic delivery.',
+      response_format: 'mp3',
+    } as any);
+    const audioBase64 = Buffer.from(await speech.arrayBuffer()).toString('base64');
+    return { audioBase64, format: 'mp3', useWebSpeechFallback: false, provider: 'openai', modelId: process.env.ALFRED_OPENAI_TTS_MODEL || 'gpt-4o-mini-tts' };
+  } catch (err) {
+    const code = statusCode(err);
+    coolDownProvider('openai', code);
+    console.warn(`[TTS] OpenAI unavailable (${code || 'request error'}); using browser fallback.`);
     return null;
   }
 }
 
 export function getTtsStatus() {
   return {
-    provider: process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : GEMINI_TTS_API_KEY ? 'gemini' : 'web_speech',
+    provider: process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : GEMINI_TTS_API_KEY ? 'gemini' : process.env.OPENAI_API_KEY ? 'openai' : 'web_speech',
     elevenLabsConfigured: Boolean(process.env.ELEVENLABS_API_KEY),
     elevenLabsAgentId: ELEVENLABS_AGENT_ID,
     elevenLabsVoiceId: ELEVENLABS_VOICE_ID,
     elevenLabsVoiceName: process.env.ALFRED_TTS_VOICE_NAME || 'Rupert / Alfred',
     elevenLabsModelId: ELEVENLABS_MODEL,
-    browserFallback: !process.env.ELEVENLABS_API_KEY && !GEMINI_TTS_API_KEY,
+    browserFallback: !process.env.ELEVENLABS_API_KEY && !GEMINI_TTS_API_KEY && !process.env.OPENAI_API_KEY,
     reason: process.env.ELEVENLABS_API_KEY
       ? 'ElevenLabs configured; Gemini remains the fallback'
       : GEMINI_TTS_API_KEY
         ? 'ElevenLabs unavailable; Gemini TTS configured as fallback'
-        : 'No cloud TTS key is configured; browser Web Speech is the final fallback',
+        : process.env.OPENAI_API_KEY
+          ? 'ElevenLabs and Gemini unavailable; OpenAI TTS configured as fallback'
+          : 'No cloud TTS key is configured; browser Web Speech is the final fallback',
   };
 }
 
@@ -142,6 +190,9 @@ export async function synthesizeSpeech(text: string, language: Language): Promis
 
   const geminiResult = await tryGeminiTTS(text);
   if (geminiResult) return geminiResult;
+
+  const openAIResult = await tryOpenAITTS(text, language);
+  if (openAIResult) return openAIResult;
 
   return { audioBase64: null, useWebSpeechFallback: true, provider: 'web_speech' };
 }
