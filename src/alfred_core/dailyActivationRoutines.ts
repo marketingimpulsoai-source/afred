@@ -21,6 +21,14 @@ const MORNING_URL = 'https://www.youtube.com/watch?v=rvLNvq5_-Fw&list=PLlQalC1rB
 const AFTERNOON_URL = 'https://www.youtube.com/watch?v=4a1cl9DZ4Vo&list=PLlQalC1rBuOgcIsxAEBf7aQjWduWaJhpt&index=5';
 
 export const DAILY_ROUTINE_TRIGGER_PHRASES = [
+  'alfred activa mi rutina diaria',
+  'activa mi rutina diaria',
+  'alfred inicia mi rutina diaria',
+  'inicia mi rutina diaria',
+  'abre la rutina diaria',
+  'abre la ruina diaria',
+  'rutina diaria con musica',
+  'rutina diaria con musica guardada',
   'alfred hora de trabajar',
   'que mundo hora de trabajar',
   'llego papi hora de trabajar',
@@ -169,12 +177,9 @@ function afternoonRoutine(trigger: string): AlfredDailyRoutine {
 function nightRoutine(trigger: string): AlfredDailyRoutine {
   const id: AlfredDailyRoutineId = 'night_service';
   const responseText = [
-    'Buenas noches, Jefe Maestro. Estoy listo y a su servicio. ¿Cómo puedo ayudarle la noche de hoy?',
-    '',
-    'Activaré la rutina de noche: comentario breve sobre cierre del mercado americano, criptomonedas más nombradas del día y sugerencias de tareas ligeras.',
-    'Puedo ayudarle con planificación del día siguiente, repaso de proyectos y lectura de informes.',
-    '',
-    'Si una fuente de noticias, mercado, cripto o voz falla, lo informaré explícitamente y continuaré con lo disponible.',
+    'Buenas noches, Jefe Maestro. Rutina diaria activada.',
+    'Abriré la música guardada a volumen moderado y prepararé el cierre del mercado, las criptomonedas más mencionadas y la planificación ligera de mañana.',
+    'Si una fuente falla, continuaré con lo disponible y se lo informaré claramente.',
   ].join('\n');
   return {
     id,
@@ -187,6 +192,7 @@ function nightRoutine(trigger: string): AlfredDailyRoutine {
     humanConfirmationRequiredFor: baseGuards(),
     uiActions: [
       auditAction(id, 'Rutina de noche activada.'),
+      ...youtubeActions(MORNING_URL, id),
       {
         type: 'toast',
         label: 'Rutina de noche activada',
@@ -231,6 +237,11 @@ function earlyMorningRoutine(trigger: string): AlfredDailyRoutine {
 function isDailyRoutineTrigger(normalized: string): string | null {
   const explicit = DAILY_ROUTINE_TRIGGER_PHRASES.find(trigger => normalized.includes(trigger));
   if (explicit) return explicit;
+
+  const hasRoutineCommand = /\b(activa|activar|inicia|iniciar|abre|abrir)\b.*\b(rutina|ruina)\b.*\b(diaria|diara|diario|diarios)\b/.test(normalized);
+  const hasDailyRoutine = /\b(rutina|ruina)\b.*\b(diaria|diara|diario|diarios)\b/.test(normalized);
+  const hasMusic = /\b(musica|music)\b/.test(normalized);
+  if (hasRoutineCommand || (hasDailyRoutine && hasMusic)) return normalized;
 
   const hasGreeting = /\b(buen|buenos|buenas)\b/.test(normalized) && /\b(alfred|jefe maestro)\b/.test(normalized);
   const hasWork = normalized.includes('hora de trabajar');

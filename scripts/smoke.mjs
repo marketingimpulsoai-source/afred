@@ -126,6 +126,26 @@ async function main() {
   if (!dailyRoutine.routineId) throw new Error('Daily routine was not activated');
   if (!dailyRoutine.text.includes('Jefe Maestro')) throw new Error('Daily routine greeting missing Jefe Maestro');
   if (!Array.isArray(dailyRoutine.uiActions) || !dailyRoutine.uiActions.some(action => action.type === 'audit_log')) throw new Error('Daily routine audit action missing');
+
+  const explicitRoutine = await postJson('/api/chat', {
+    message: 'Alfred, activa mi rutina diaria',
+    language: 'es',
+    securityLevel: 'BALANCED',
+    sessionId: 'smoke_test_explicit_routine',
+    history: []
+  });
+  if (!explicitRoutine.routineId) throw new Error('Explicit daily routine activation was not detected');
+  if (explicitRoutine.assignedAgent) throw new Error('Explicit daily routine was incorrectly delegated');
+
+  const savedMusicRoutine = await postJson('/api/chat', {
+    message: 'abre la ruina diara con musica guardada',
+    language: 'es',
+    securityLevel: 'BALANCED',
+    sessionId: 'smoke_test_saved_music_routine',
+    history: []
+  });
+  if (!savedMusicRoutine.routineId) throw new Error('Saved-music routine activation was not detected');
+  if (!savedMusicRoutine.uiActions?.some(action => action.type === 'open_url')) throw new Error('Saved-music routine did not open music action');
   if (['morning_work', 'afternoon_service'].includes(dailyRoutine.routineId) && !dailyRoutine.uiActions.some(action => action.type === 'open_url' && action.url?.includes('youtube-routine-player.html') && action.url?.includes('volume=40'))) {
     throw new Error('Daily routine YouTube moderate-volume player action missing');
   }

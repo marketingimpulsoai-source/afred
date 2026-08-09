@@ -17,6 +17,15 @@ import { playAudioTTS, playAcknowledgmentChime } from './utils/audioTTS';
 import { timeBasedGreeting } from './alfred_core/personality';
 import './styles/alfredV2.css';
 
+function getSpokenText(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .filter(line => !/^\s*(razonamiento|reasoning|voz|voice|confidence|confianza)\b/i.test(line))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Sesión persistente en localStorage — sobrevive recargas y cierres del navegador
 function getOrCreateSessionId(): string {
   const KEY = 'alfred_session_id';
@@ -170,13 +179,14 @@ export default function App() {
       setMessages(prev => [...prev, alfredMsg]);
       setCoreState('SPEAKING');
 
-      const lcText = data.text.toLowerCase();
+      const spokenText = getSpokenText(data.text);
+      const lcText = spokenText.toLowerCase();
       if (lcText.includes('comprendido') || lcText.includes('entendido') || lcText.includes('understood')) {
         playAcknowledgmentChime();
       }
 
       if (!audioMuted) {
-        playAudioTTS(data.text, language, () => setCoreState('IDLE'));
+        playAudioTTS(spokenText, language, () => setCoreState('IDLE'));
       } else {
         setTimeout(() => setCoreState('IDLE'), 1200);
       }
