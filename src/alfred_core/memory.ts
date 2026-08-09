@@ -299,6 +299,34 @@ export function getAgentWorkReport(from: number, to: number): any[] {
   `).all(from, to);
 }
 
+export function getAgentConversationArchive(limit = 200): any[] {
+  const effectiveLimit = Math.min(Math.max(limit || 200, 1), 1000);
+  const rows = db.prepare(`
+    SELECT id, session_id, sender, agent_id, agent_name, text, timestamp, created_at,
+      language, tool_calls, routing_decision, confidence_score
+    FROM messages
+    WHERE sender = 'subagent'
+       OR agent_id IS NOT NULL
+       OR routing_decision IS NOT NULL
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(effectiveLimit * 3) as any[];
+  return rows.map(r => ({
+    id: r.id,
+    sessionId: r.session_id,
+    sender: r.sender,
+    agentId: r.agent_id || undefined,
+    agentName: r.agent_name || undefined,
+    text: r.text,
+    timestamp: r.timestamp,
+    createdAt: r.created_at,
+    language: r.language,
+    toolCalls: r.tool_calls ? JSON.parse(r.tool_calls) : [],
+    routingDecision: r.routing_decision ? JSON.parse(r.routing_decision) : undefined,
+    confidenceScore: r.confidence_score ?? undefined,
+  })).filter(item => item.agentId || item.routingDecision?.chosenAgentId || item.sender === 'subagent').slice(0, effectiveLimit);
+}
+
 export function saveAgentWork(log: {
   id: string; createdAt: number; query: string; assignedAgentId: string;
   assignedAgentName: string; status: string; latencyMs: number;

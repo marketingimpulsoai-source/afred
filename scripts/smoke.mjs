@@ -262,6 +262,8 @@ async function main() {
 
   const telemetry = await getJson('/api/telemetry');
   if (!telemetry.metrics || telemetry.metrics.activeAgentsCount !== 12) throw new Error('Telemetry active agent count is not 12');
+  const agentConversations = await getJson('/api/agent-conversations?limit=25');
+  if (!Array.isArray(agentConversations.conversations)) throw new Error('Neural agent conversation archive endpoint missing');
 
   const voiceBridgeScript = 'scripts/windows-alfred-voice-bridge.ps1';
   const voiceBridgeLauncher = 'scripts/windows-start-voice-bridge.bat';
@@ -296,6 +298,17 @@ async function main() {
   if (!appSource.includes('/api/local-message') || !appSource.includes('mediaAudioCommand')) {
     throw new Error('Instant media command persistence missing');
   }
+  const neuralSource = readFileSync('src/components/NeuralNetworkMap.tsx', 'utf8');
+  if (!neuralSource.includes('Archivo Neural de conversaciones de subagentes') || !neuralSource.includes('/api/agent-conversations') || !neuralSource.includes('delegatesTo')) {
+    throw new Error('Neural subagent communication archive/map missing');
+  }
+  if (!coreHudSource.includes('<NeuralNetworkMap') || !coreHudSource.includes('compact messages={messages}')) {
+    throw new Error('Compact Neural map missing from Alfred main Core menu');
+  }
+  const serverSource = readFileSync('server.ts', 'utf8');
+  if (!serverSource.includes('/api/agent-conversations')) throw new Error('Neural conversations API route missing');
+  const memorySource = readFileSync('src/alfred_core/memory.ts', 'utf8');
+  if (!memorySource.includes('getAgentConversationArchive')) throw new Error('Neural conversations archive query missing');
   const supervisorSource = readFileSync('src/alfred_core/supervisor.ts', 'utf8');
   if (!supervisorSource.includes('buildFastConversationReply') || !supervisorSource.includes('alfred_core_fast')) {
     throw new Error('Fast normal conversation path missing');

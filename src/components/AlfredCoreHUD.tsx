@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Language, CoreState, Message, SubAgent, SecurityLevel } from '../types';
 import { AlfredWorldOrb3D } from './AlfredWorldOrb3D';
+import { NeuralNetworkMap } from './NeuralNetworkMap';
 
 interface Props {
   language: Language;
@@ -797,6 +798,8 @@ export const AlfredCoreHUD: React.FC<Props> = ({
         <StatusCard icon={<Bot />} label="Sub-agents" value={`${activeCount}/12 online`} tone="emerald" />
         <StatusCard icon={<Cpu />} label="Security" value={securityLevel} tone="violet" />
       </section>
+
+      <NeuralNetworkMap language={language} subAgents={subAgents} activityVersion={messages.length + activeCount} compact messages={messages} />
 
       <section className="v35-fusion-panel" aria-label={language === 'es' ? 'Matriz visual de Alfred' : 'Alfred visual matrix'}>
         <div className="v35-fusion-head">

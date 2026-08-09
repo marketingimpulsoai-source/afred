@@ -323,7 +323,7 @@ export default function App() {
         {activeTab === 'observability' && <ObservabilityDashboard language={language} />}
         {activeTab === 'architecture' && <ArchitectureDeepDive language={language} />}
         {activeTab === 'settings' && <SettingsPanel language={language} />}
-        {activeTab === 'network' && <NeuralNetworkMap language={language} subAgents={subAgents} activityVersion={agentActivityVersion} />}
+        {activeTab === 'network' && <NeuralNetworkMap language={language} subAgents={subAgents} activityVersion={agentActivityVersion + messages.length} messages={messages} />}
         {activeTab === 'memory' && <MemoryVault language={language} />}
         {activeTab === 'docs' && <DocsArchitecture language={language} />}
       </main>

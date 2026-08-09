@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { processUserRequest, getUptimeSeconds, getTotalQueries } from './src/alfred_core/supervisor';
 import { getLLMProvider } from './src/alfred_core/llmProvider';
-import { getMessagesBySession, getMessagesByDay, getConversationDays, getRecentTelemetry, getAgentWorkReport, saveMessage } from './src/alfred_core/memory';
+import { getMessagesBySession, getMessagesByDay, getConversationDays, getRecentTelemetry, getAgentWorkReport, getAgentConversationArchive, saveMessage } from './src/alfred_core/memory';
 import PDFDocument from 'pdfkit';
 import { SUB_AGENTS, AGENT_TOOLS, SAFETY_POLICIES } from './src/data/alfredData';
 import { BUSINESS_AGENTS, CLIENT_SEGMENTS, PAGE_VIDEO_FACTORY, findBusinessMatches } from './src/data/businessAgents';
@@ -213,6 +213,12 @@ app.get('/api/agent-work', (req, res) => {
     : end - 7 * 24 * 60 * 60 * 1000;
   const work = getAgentWorkReport(from, end);
   res.json({ from: new Date(from).toISOString(), to: new Date(end).toISOString(), work });
+});
+
+app.get('/api/agent-conversations', (_req, res) => {
+  const limit = Math.min(Math.max(Number(_req.query.limit) || 200, 1), 1000);
+  const conversations = getAgentConversationArchive(limit);
+  res.json({ conversations, total: conversations.length });
 });
 
 app.get('/api/agent-work.pdf', (req, res) => {
