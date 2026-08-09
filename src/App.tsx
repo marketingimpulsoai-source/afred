@@ -48,6 +48,7 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId] = useState<string>(getOrCreateSessionId());
   const [agentActivityVersion, setAgentActivityVersion] = useState(0);
+  const [embeddedMediaUrl, setEmbeddedMediaUrl] = useState<string | null>(null);
 
   const addToast = (message: string, agentName?: string) => {
     setToasts(prev => [...prev, { id: Date.now().toString(), message, agentName }]);
@@ -70,6 +71,11 @@ export default function App() {
         setActiveTab(action.tabId);
       }
       if (action.type === 'open_url' && action.url) {
+        if (action.target === 'youtube' && action.url.startsWith('/youtube-routine-player.html')) {
+          setEmbeddedMediaUrl(action.url);
+          addToast(`${action.label}${action.volume ? ` · volumen ${action.volume}` : ''}`, 'ALFRED');
+          return;
+        }
         const opened = window.open(action.url, '_blank', 'noopener,noreferrer');
         addToast(
           opened
@@ -98,6 +104,19 @@ export default function App() {
     fetch('/api/agents').then(r => r.json()).then(d => {
       if (d.agents) setSubAgents(d.agents);
     }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const refreshAgents = () => {
+      fetch('/api/agents').then(r => r.json()).then(d => {
+        if (d.agents) {
+          setSubAgents(d.agents);
+          setAgentActivityVersion(version => version + 1);
+        }
+      }).catch(() => {});
+    };
+    const timer = window.setInterval(refreshAgents, 2500);
+    return () => window.clearInterval(timer);
   }, []);
 
   function welcomeMessage(lang: Language, sid: string): Message {
@@ -235,6 +254,8 @@ export default function App() {
             subAgents={subAgents}
             securityLevel={securityLevel}
             audioMuted={audioMuted}
+            embeddedMediaUrl={embeddedMediaUrl}
+            onCloseEmbeddedMedia={() => setEmbeddedMediaUrl(null)}
           />
         )}
         {activeTab === 'agents' && <SubAgentsGrid subAgents={subAgents} language={language} />}
