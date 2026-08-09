@@ -23,6 +23,7 @@ const ELEVENLABS_AGENT_ID = process.env.ALFRED_ELEVENLABS_AGENT_ID || 'agent_000
 const ELEVENLABS_VOICE_ID = process.env.ALFRED_TTS_VOICE_ID || '89gcX1AeMGgcsN8ypHLu';
 const ELEVENLABS_MODEL = process.env.ALFRED_TTS_MODEL_ID || 'eleven_multilingual_v2';
 const ELEVENLABS_OUTPUT_FORMAT = process.env.ALFRED_TTS_OUTPUT_FORMAT || 'mp3_44100_128';
+const GEMINI_TTS_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
 async function streamToBase64(stream: ReadableStream<Uint8Array>): Promise<string> {
   const arrayBuffer = await new Response(stream).arrayBuffer();
@@ -69,11 +70,11 @@ async function tryElevenLabs(text: string, language: Language): Promise<TTSResul
 }
 
 async function tryGeminiTTS(text: string): Promise<TTSResult | null> {
-  if (!process.env.GEMINI_API_KEY) return null;
+  if (!GEMINI_TTS_API_KEY) return null;
 
   try {
     const { GoogleGenAI } = await import('@google/genai');
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: GEMINI_TTS_API_KEY });
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-preview-tts',
@@ -99,14 +100,18 @@ async function tryGeminiTTS(text: string): Promise<TTSResult | null> {
 
 export function getTtsStatus() {
   return {
-    provider: process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : process.env.GEMINI_API_KEY ? 'gemini' : 'web_speech',
+    provider: process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : GEMINI_TTS_API_KEY ? 'gemini' : 'web_speech',
     elevenLabsConfigured: Boolean(process.env.ELEVENLABS_API_KEY),
     elevenLabsAgentId: ELEVENLABS_AGENT_ID,
     elevenLabsVoiceId: ELEVENLABS_VOICE_ID,
     elevenLabsVoiceName: process.env.ALFRED_TTS_VOICE_NAME || 'Rupert / Alfred',
     elevenLabsModelId: ELEVENLABS_MODEL,
-    browserFallback: !process.env.ELEVENLABS_API_KEY && !process.env.GEMINI_API_KEY,
-    reason: process.env.ELEVENLABS_API_KEY ? 'ElevenLabs configured' : 'ELEVENLABS_API_KEY is not configured in the server environment',
+    browserFallback: !process.env.ELEVENLABS_API_KEY && !GEMINI_TTS_API_KEY,
+    reason: process.env.ELEVENLABS_API_KEY
+      ? 'ElevenLabs configured; Gemini remains the fallback'
+      : GEMINI_TTS_API_KEY
+        ? 'ElevenLabs unavailable; Gemini TTS configured as fallback'
+        : 'No cloud TTS key is configured; browser Web Speech is the final fallback',
   };
 }
 
