@@ -116,6 +116,22 @@ export default function App() {
           addToast(`${action.label}${action.volume ? ` · volumen ${action.volume}` : ''}`, 'ALFRED');
           return;
         }
+        if (action.target === 'browser') {
+          const browserUrl = internalWebSearchFromAction(action.url, action.message || action.label || '') || action.url;
+          fetch('/api/browser-worker/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId,
+              action: 'open',
+              url: browserUrl,
+              allowPrivate: browserUrl.startsWith('/') || browserUrl.includes('localhost') || browserUrl.includes('127.0.0.1'),
+              screenshot: true,
+            }),
+          }).catch(() => {});
+          addToast(`${action.label || 'Web abierta'} · Browser Worker activado`, 'ALFRED');
+          return;
+        }
         const internalSearchUrl = internalWebSearchFromAction(action.url, action.message || action.label || '');
         setEmbeddedWebPanel({
           url: internalSearchUrl || action.url,

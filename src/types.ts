@@ -250,7 +250,7 @@ export interface UiAction {
   type: 'open_url' | 'toast' | 'focus_tab' | 'audit_log';
   label: string;
   url?: string;
-  target?: 'youtube' | 'internal' | 'external';
+  target?: 'youtube' | 'internal' | 'external' | 'browser';
   volume?: 'moderate' | 'regular' | 'muted';
   message?: string;
   tabId?: TabId;

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ALFRED Browser Worker Fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 32px; background: #08111f; color: #e5eefb; }
+    .card { max-width: 760px; border: 1px solid #274058; border-radius: 16px; padding: 24px; background: rgba(10, 18, 31, 0.92); }
+    input, button, a { font: inherit; }
+    input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #35506a; background: #0d1726; color: #fff; margin: 12px 0; }
+    button, a { display: inline-block; padding: 10px 14px; border-radius: 10px; border: 0; background: #0ea5e9; color: white; cursor: pointer; text-decoration: none; margin-right: 10px; }
+    .result { margin-top: 18px; padding: 14px; border-radius: 12px; background: #10243a; min-height: 48px; }
+    small { color: #8ca3c0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>ALFRED Browser Worker Fixture</h1>
+    <p>Fixture local para validar navegación, escritura, click, extracción y descarga del worker real.</p>
+    <label for="name">Nombre de prueba</label>
+    <input id="name" aria-label="Nombre de prueba" placeholder="Jefe Maestro" value="Jefe Maestro" />
+    <button id="greet" type="button">Saludar</button>
+    <a id="download-link" href="/browser-worker-fixture.txt" download="alfred-browser-worker-fixture.txt">Descargar evidencia</a>
+    <div id="result" class="result">Esperando interacción del Browser Worker.</div>
+    <small id="status">Estado: listo para pruebas automáticas.</small>
+  </div>
+  <script>
+    const input = document.getElementById('name');
+    const result = document.getElementById('result');
+    const status = document.getElementById('status');
+    document.getElementById('greet').addEventListener('click', () => {
+      const name = input.value.trim() || 'Jefe Maestro';
+      result.textContent = `Hola, ${name}. El Browser Worker real está funcionando correctamente.`;
+      status.textContent = `Última acción: saludo a ${name}.`;
+    });
+  </script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 
-const BASE = process.env.ALFRED_BASE_URL || 'http://localhost:3000';
+const BASE = process.env.ALFRED_BASE_URL || 'http://127.0.0.1:3000';
 let managedServer = null;
 
 function wait(ms) {
@@ -21,7 +21,7 @@ async function canReachHealth() {
 async function ensureServer() {
   if (await canReachHealth()) return;
   managedServer = spawn(process.execPath, ['dist/server.mjs'], {
-    env: { ...process.env, NODE_ENV: 'production' },
+    env: { ...process.env, NODE_ENV: 'production', ALFRED_HOST: process.env.ALFRED_HOST || '127.0.0.1' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let tail = '';
@@ -115,6 +115,62 @@ async function main() {
   if (!market.uiActions?.every(a => a.type !== 'open_url' || a.target === 'internal')) throw new Error('Market web actions must stay inside Alfred Web Core');
   const webCoreSearch = await getJson('/api/web-core/search?q=alfred%20voice%20test');
   if (!Array.isArray(webCoreSearch.results) || webCoreSearch.results.length === 0) throw new Error('Internal Alfred Web Core search failed');
+
+  const browserStatus = await getJson('/api/browser-worker/status');
+  if (!browserStatus.available || !browserStatus.ready) throw new Error('Browser Worker is not ready');
+
+  const browserOpen = await postJson('/api/browser-worker/command', {
+    sessionId: 'smoke_browser_worker',
+    action: 'open',
+    url: '/browser-worker-fixture.html',
+    allowPrivate: true,
+    screenshot: true,
+  });
+  if (browserOpen.status !== 'SUCCESS' || !String(browserOpen.url || '').includes('/browser-worker-fixture.html')) throw new Error('Browser Worker open failed');
+
+  const browserFill = await postJson('/api/browser-worker/command', {
+    sessionId: 'smoke_browser_worker',
+    action: 'fill',
+    selector: '#name',
+    value: 'Jefe Maestro',
+    allowPrivate: true,
+    screenshot: true,
+  });
+  if (browserFill.status !== 'SUCCESS') throw new Error('Browser Worker fill failed');
+
+  const browserClick = await postJson('/api/browser-worker/command', {
+    sessionId: 'smoke_browser_worker',
+    action: 'click',
+    selector: '#greet',
+    allowPrivate: true,
+    screenshot: true,
+  });
+  if (browserClick.status !== 'SUCCESS') throw new Error('Browser Worker click failed');
+
+  const browserExtract = await postJson('/api/browser-worker/command', {
+    sessionId: 'smoke_browser_worker',
+    action: 'extract',
+    selector: '#result',
+    allowPrivate: true,
+    screenshot: false,
+  });
+  if (!String(browserExtract.text || '').includes('Jefe Maestro')) throw new Error('Browser Worker extract failed');
+
+  const browserDownload = await postJson('/api/browser-worker/command', {
+    sessionId: 'smoke_browser_worker',
+    action: 'download',
+    selector: '#download-link',
+    confirm: true,
+    allowPrivate: true,
+    screenshot: false,
+  });
+  if (browserDownload.status !== 'SUCCESS' || !browserDownload.downloadPath || !existsSync(browserDownload.downloadPath)) throw new Error('Browser Worker download failed');
+
+  await postJson('/api/browser-worker/command', {
+    sessionId: 'smoke_browser_worker',
+    action: 'close',
+    allowPrivate: true,
+  });
 
   const research = await postJson('/api/chat', {
     message: 'investiga RevenueCat últimas noticias oficiales para un SaaS',

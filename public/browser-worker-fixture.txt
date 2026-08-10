@@ -1,0 +1,4 @@
+ALFRED Browser Worker fixture
+
+This file is used to verify that the Browser Worker can trigger and save downloads.
+Generated locally for automated verification.

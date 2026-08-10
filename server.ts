@@ -23,6 +23,7 @@ import { getAlfredV3ApiStatus } from './src/integrations/alfredV3Apis';
 import { getOperationalBriefing } from './src/integrations/operationalBriefing';
 import { buildCryptoMarketAnswer } from './src/alfred_core/marketData';
 import { researchWithPerplexity, renderPerplexityResearchHtml } from './src/alfred_core/perplexity';
+import { executeBrowserWorkerCommand, getBrowserWorkerStatus } from './src/alfred_core/browserWorker';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,6 +87,24 @@ app.get('/api/alfred-v3/status', (req, res) => {
     },
     apiPipelines: getAlfredV3ApiStatus(),
   });
+});
+
+app.get('/api/browser-worker/status', async (_req, res) => {
+  try {
+    res.json(await getBrowserWorkerStatus());
+  } catch (error: any) {
+    res.status(500).json({ available: false, ready: false, error: String(error?.message || error) });
+  }
+});
+
+app.post('/api/browser-worker/command', async (req, res) => {
+  try {
+    const result = await executeBrowserWorkerCommand(req.body || {});
+    const statusCode = result.status === 'SUCCESS' ? 200 : result.status === 'REQUIRES_CONFIRMATION' ? 409 : result.status === 'BLOCKED' ? 403 : 500;
+    res.status(statusCode).json(result);
+  } catch (error: any) {
+    res.status(500).json({ ok: false, status: 'ERROR', error: String(error?.message || error) });
+  }
 });
 
 app.get('/api/briefing', (req, res) => {

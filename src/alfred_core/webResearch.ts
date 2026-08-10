@@ -68,8 +68,8 @@ export function buildWebResearchPlan(message: string, language: Language): WebRe
   ];
 
   const textPrefix = language === 'es'
-    ? 'Investigación web activada. Verificaré solo fuentes oficiales y marcaré lo no verificado.\n\n'
-    : 'Web research activated. I will verify only official sources and mark anything unverified.\n\n';
+    ? 'Investigación web activada en ALFRED WEB CORE. Verificaré solo fuentes oficiales y marcaré lo no verificado.\n\n'
+    : 'Web research activated in ALFRED WEB CORE. I will verify only official sources and mark anything unverified.\n\n';
 
   return { shouldResearch: true, textPrefix, uiActions };
 }
