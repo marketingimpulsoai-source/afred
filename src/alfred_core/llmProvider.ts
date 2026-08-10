@@ -1,3 +1,4 @@
+import '../env';
 // ═══════════════════════════════════════════════════════════════════════
 // ALFRED CORE — Proveedor LLM Abstracto
 // Permite intercambiar el motor de lenguaje (Gemini / OpenAI / OpenRouter)

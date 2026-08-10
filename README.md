@@ -86,6 +86,8 @@ ALFRED_TTS_VOICE_ID=89gcX1AeMGgcsN8ypHLu
 ALFRED_TTS_MODEL_ID=eleven_multilingual_v2
 ```
 
+Alfred lee `ELEVENLABS_API_KEY` desde el `.env` del proyecto o desde la bóveda de Hermes (`~/.hermes/.env`) si existe, así no hace falta duplicar el secreto.
+
 El preview de Rupert queda en `public/audio/alfred-rupert-preview.mp3`. Detalles completos: `docs/VOICE_ALFRED_RUPERT.md`.
 
 Si no hay ElevenLabs, usa Gemini TTS si hay `GEMINI_API_KEY`; si tampoco existe, el navegador usa Web Speech API intentando seleccionar voz masculina ES/EN con pitch grave.

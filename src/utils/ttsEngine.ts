@@ -1,3 +1,4 @@
+import '../env';
 // ═══════════════════════════════════════════════════════════════════════
 // MOTOR TTS — Voz masculina, formal, estilo mayordomo británico.
 // Prioridad: ElevenLabs Rupert/Alfred → Gemini TTS → Web Speech API local.

@@ -1,3 +1,4 @@
+import '../env';
 import { Language, UiAction } from '../types';
 
 export interface PerplexityCitation {

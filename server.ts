@@ -2,7 +2,7 @@
 // ALFRED — Servidor Principal
 // Expone el Orquestador Central, memoria persistente, telemetría y TTS.
 // ═══════════════════════════════════════════════════════════════════════
-import 'dotenv/config';
+import './src/env';
 import express from 'express';
 import crypto from 'crypto';
 import path from 'path';
