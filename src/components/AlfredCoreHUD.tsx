@@ -503,7 +503,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
       if (!synth) throw new Error('speechSynthesis no disponible');
       synth.cancel();
       const voices = synth.getVoices();
-      const preferred = voices.find(voice => /spanish|es-|sabina|pablo|jorge|diego|helena/i.test(`${voice.name} ${voice.lang}`)) || voices.find(voice => voice.lang?.startsWith('es')) || voices[0];
+      const preferred = voices.find(voice => /spanish|es-|sabina|pablo|jorge|diego|helena/i.test(`${voice.name} ${voice.lang}`)) || voices.find(voice => voice.lang?.startsWith('es'));
       const utterance = new SpeechSynthesisUtterance('Jefe Maestro, esta es una prueba de voz local de Alfred en esta PC.');
       if (preferred) utterance.voice = preferred;
       utterance.lang = preferred?.lang || 'es-ES';

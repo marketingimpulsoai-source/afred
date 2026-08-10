@@ -4,7 +4,7 @@ Dim shell, fso, root, chromePath, profileDir, serverCmd, voiceCmd, chromeCmd
 
 Set shell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
-root = fso.GetParentFolderName(WScript.ScriptFullName)
+root = fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))
 profileDir = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\AlfredChromeProfile"
 
 chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"

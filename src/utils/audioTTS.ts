@@ -113,9 +113,8 @@ const fallbackTTS = (text: string, language: string, onEnd: () => void, onStart?
 
     // Alfred usa siempre una voz masculina; no elegimos una voz arbitraria del idioma.
     let selected = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix) && isMale(v));
-    // Si Windows no tiene voz masculina española, preferimos voz masculina inglesa
-    // antes que cambiar a una voz femenina.
-    if (!selected) selected = voices.find(v => v.lang.toLowerCase().startsWith('en') && isMale(v));
+    // Si Windows no tiene voz masculina española, preferimos una voz femenina española antes que cambiar a una voz inglesa.
+    if (!selected && language === 'es') selected = voices.find(v => v.lang.toLowerCase().startsWith('es'));
     if (selected) {
       utterance.voice = selected;
       utterance.lang = selected.lang;
