@@ -177,19 +177,17 @@ export async function buildCryptoMarketAnswer(message: string, language: Languag
   const caveat = failed.length ? `\nNo pude confirmar: ${failed.join(', ')}.` : '';
   const text = language === 'es'
     ? [
-      'Jefe Maestro, verifiqué el mercado con fuentes reales antes de responder. No usaré precios inventados.',
+      'Jefe Maestro, verifiqué el mercado con fuentes reales.',
       ...lines,
-      'Preparé TradingView y CoinMarketCap dentro del panel ALFRED WEB CORE para contrastar gráfico, volumen, tendencia y contexto visual.',
-      'Lectura rápida: si el cambio 24h es positivo pero el volumen cae, conviene esperar confirmación; si precio y volumen suben juntos, la señal tiene más fuerza. Antes de cualquier operación financiera le pediré confirmación humana.',
+      'Resumen: el mercado viene débil hoy; si quiere, le corrijo el formato y le doy una lectura más corta o más técnica.',
       caveat,
     ].filter(Boolean).join('\n')
     : [
-      'Jefe Maestro, I verified live market sources before answering. I will not use invented prices.',
+      'Jefe Maestro, I verified the market with live sources.',
       ...lines,
-      'I prepared TradingView and CoinMarketCap inside the ALFRED WEB CORE panel to compare chart, volume, trend, and visual context.',
-      'Quick read: if 24h change is positive but volume is falling, wait for confirmation; if price and volume rise together, the signal is stronger. I will ask for human confirmation before any financial action.',
+      'Summary: the market is weak today; if you want, I can tighten the format and give you a shorter or more technical read.',
       caveat,
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\n')
 
   return { text, uiActions, quotes };
 }

@@ -18,12 +18,23 @@ import { timeBasedGreeting } from './alfred_core/personality';
 import './styles/alfredV2.css';
 
 function getSpokenText(text: string): string {
-  return text
-    .split(/\r?\n/)
-    .filter(line => !/^\s*(razonamiento|reasoning|voz|voice|confidence|confianza)\b/i.test(line))
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const seen = new Set<string>();
+  const sentences: string[] = [];
+
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    if (/^\s*(razonamiento|reasoning|voz|voice|confidence|confianza)\b/i.test(line)) continue;
+    const pieces = line.split(/(?<=[.!?])\s+/);
+    for (const piece of pieces) {
+      const normalized = piece.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+      if (!normalized) continue;
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      sentences.push(piece.trim());
+    }
+  }
+
+  return sentences.join(' ').replace(/\s+/g, ' ').trim();
 }
 
 type EmbeddedWebPanel = { url: string; label: string; query?: string };
@@ -293,9 +304,12 @@ export default function App() {
       if (lcText.includes('comprendido') || lcText.includes('entendido') || lcText.includes('understood')) {
         playAcknowledgmentChime();
       }
+      const speechBody = spokenText.length > 320
+        ? spokenText.replace(/^jefe maestro[^.]*\.\s*/i, '').replace(/^alfred[^.]*\.\s*/i, '')
+        : spokenText;
 
       if (!audioMuted) {
-        playAudioTTS(spokenText, language, () => setCoreState('IDLE'));
+        playAudioTTS(speechBody, language, () => setCoreState('IDLE'));
       } else {
         setTimeout(() => setCoreState('IDLE'), 1200);
       }
