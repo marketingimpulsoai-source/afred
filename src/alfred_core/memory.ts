@@ -10,12 +10,14 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { MemoryRecord, MemorySearchResult, Message } from '../types';
+import { MemoryRecord, MemorySearchResult, Message, AttachmentRecord } from '../types';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const ATTACHMENTS_DIR = path.join(DATA_DIR, 'attachments');
+if (!fs.existsSync(ATTACHMENTS_DIR)) fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true });
 const DB_PATH = path.join(DATA_DIR, 'alfred.db');
 
 const db = new Database(DB_PATH);
@@ -67,6 +69,18 @@ CREATE TABLE IF NOT EXISTS memory_records (
 
 CREATE INDEX IF NOT EXISTS idx_memory_session ON memory_records(session_id);
 CREATE INDEX IF NOT EXISTS idx_memory_type ON memory_records(type);
+
+CREATE TABLE IF NOT EXISTS attachments (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  storage_path TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  sha256 TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_attachments_session ON attachments(session_id);
 
 CREATE TABLE IF NOT EXISTS telemetry (
   id TEXT PRIMARY KEY,
@@ -212,6 +226,63 @@ export function getConversationDays(limit = 90): Array<{ day: string; messageCou
     ORDER BY day DESC
     LIMIT ?
   `).all(limit) as Array<{ day: string; messageCount: number; sessionCount: number }>;
+}
+
+export function saveAttachment(record: Omit<AttachmentRecord, 'storagePath' | 'createdAt' | 'sizeBytes'> & { base64: string; createdAt?: number; sha256?: string }): AttachmentRecord {
+  const createdAt = record.createdAt ?? Date.now();
+  const id = record.id;
+  const storagePath = path.join(ATTACHMENTS_DIR, `${id}_${record.name}`.replace(/[^a-zA-Z0-9._-]/g, '_'));
+  fs.writeFileSync(storagePath, Buffer.from(record.base64, 'base64'));
+  db.prepare(`
+    INSERT OR REPLACE INTO attachments (id, session_id, name, mime_type, size_bytes, storage_path, created_at, sha256)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, record.sessionId, record.name, record.mimeType, fs.statSync(storagePath).size, storagePath, createdAt, record.sha256 || null);
+  storeMemory({
+    id: `mem_attachment_${id}`,
+    sessionId: record.sessionId,
+    type: 'semantic',
+    content: `Adjunto guardado: ${record.name} (${record.mimeType}, ${fs.statSync(storagePath).size} bytes)`,
+    createdAt,
+    source: 'document',
+    tags: ['attachment', record.mimeType, record.name],
+    metadata: { attachmentId: id, storagePath, mimeType: record.mimeType, sizeBytes: fs.statSync(storagePath).size },
+  } as any);
+  return { id, sessionId: record.sessionId, name: record.name, mimeType: record.mimeType, sizeBytes: fs.statSync(storagePath).size, storagePath, createdAt, sha256: record.sha256 };
+}
+
+export function listAttachments(sessionId?: string, limit = 100): AttachmentRecord[] {
+  const effectiveLimit = Math.min(Math.max(limit || 100, 1), 1000);
+  const rows = db.prepare(`
+    SELECT * FROM attachments
+    WHERE (? IS NULL OR session_id = ?)
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(sessionId || null, sessionId || null, effectiveLimit) as any[];
+  return rows.map(r => ({
+    id: r.id,
+    sessionId: r.session_id,
+    name: r.name,
+    mimeType: r.mime_type,
+    sizeBytes: r.size_bytes,
+    storagePath: r.storage_path,
+    createdAt: r.created_at,
+    sha256: r.sha256 || undefined,
+  }));
+}
+
+export function getAttachmentById(id: string): AttachmentRecord | null {
+  const row = db.prepare(`SELECT * FROM attachments WHERE id = ? LIMIT 1`).get(id) as any;
+  if (!row) return null;
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    name: row.name,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes,
+    storagePath: row.storage_path,
+    createdAt: row.created_at,
+    sha256: row.sha256 || undefined,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────

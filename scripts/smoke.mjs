@@ -113,6 +113,8 @@ async function main() {
   const market = await getJson('/api/market/crypto?asset=BTC');
   if (!market.quotes?.[0]?.priceUsd || !market.uiActions?.some(a => String(a.url || '').includes('tradingview.com'))) throw new Error('Live crypto market verification missing');
   if (!market.uiActions?.every(a => a.type !== 'open_url' || a.target === 'internal')) throw new Error('Market web actions must stay inside Alfred Web Core');
+  const webCoreSearch = await getJson('/api/web-core/search?q=alfred%20voice%20test');
+  if (!Array.isArray(webCoreSearch.results) || webCoreSearch.results.length === 0) throw new Error('Internal Alfred Web Core search failed');
 
   const research = await postJson('/api/chat', {
     message: 'investiga RevenueCat últimas noticias oficiales para un SaaS',
@@ -260,6 +262,25 @@ async function main() {
     if (pdfBytes.byteLength < 500) throw new Error('Daily conversation PDF is unexpectedly small');
   }
 
+  const uploadCheck = await postJson('/api/attachments', {
+    sessionId: 'smoke-session',
+    name: 'smoke.json',
+    mimeType: 'application/json',
+    dataBase64: Buffer.from('{"smoke":true}').toString('base64'),
+  });
+  if (!uploadCheck.attachment?.id || uploadCheck.attachment.sizeBytes !== 14) throw new Error('Attachment upload failed');
+  const attachmentList = await getJson('/api/attachments?sessionId=smoke-session');
+  if (!Array.isArray(attachmentList.attachments) || attachmentList.attachments.length < 1) throw new Error('Attachment listing failed');
+
+  const githubAnalysis = await postJson('/api/chat', {
+    message: 'Analiza este repositorio https://github.com/vitejs/vite y dime lo principal',
+    language: 'es',
+    sessionId: 'smoke-github',
+    history: [],
+  });
+  if (!String(githubAnalysis.text || '').includes('Repositorio: vitejs/vite')) throw new Error('GitHub analysis response missing repository summary');
+  if (!githubAnalysis.uiActions || githubAnalysis.uiActions.length < 2) throw new Error('GitHub analysis UI actions missing');
+
   const telemetry = await getJson('/api/telemetry');
   if (!telemetry.metrics || telemetry.metrics.activeAgentsCount !== 12) throw new Error('Telemetry active agent count is not 12');
   const agentConversations = await getJson('/api/agent-conversations?limit=25');
@@ -276,7 +297,7 @@ async function main() {
     throw new Error('Windows voice bridge does not wire recognition to Alfred chat');
   }
   const startupSource = readFileSync(startupLauncher, 'utf8');
-  if (!startupSource.includes('windows-alfred-voice-bridge.ps1')) throw new Error('Startup launcher does not start voice bridge');
+  if (!startupSource.includes('windows-alfred-voice-bridge.ps1') || !startupSource.includes('msedge.exe')) throw new Error('Startup launcher does not start voice bridge or Edge');
 
   const coreHudSource = readFileSync('src/components/AlfredCoreHUD.tsx', 'utf8');
   if (!coreHudSource.includes('CHAT_RECENT_LIMIT = 6') || !coreHudSource.includes('Ver texto anterior')) {
@@ -288,8 +309,14 @@ async function main() {
   if (!coreHudSource.includes('ALFRED WEB CORE') || !coreHudSource.includes('webPanelUrlFromInput') || !coreHudSource.includes('Abrir fuera') || !coreHudSource.includes('Copiar enlace') || !coreHudSource.includes('Recargar')) {
     throw new Error('Embedded Alfred Web Core browser panel missing');
   }
+  if (!coreHudSource.includes('/api/web-core/search') || !coreHudSource.includes('v3-web-results') || !coreHudSource.includes('Resultados internos de Alfred Web Core')) {
+    throw new Error('Iframe-safe internal Web Core search results missing');
+  }
   if (!coreHudSource.includes('sendMediaCommand') || !coreHudSource.includes('Audio del panel silenciado para proteger el micrófono')) {
     throw new Error('Media audio guard/mute controls missing');
+  }
+  if (!coreHudSource.includes('testMicSignal') || !coreHudSource.includes('testLocalVoice') || !coreHudSource.includes('Micrófono de la PC') || !coreHudSource.includes('alfred-attachment-input') || !coreHudSource.includes('Adjuntos recientes')) {
+    throw new Error('PC microphone signal, local voice diagnostics, or attachment upload UI missing');
   }
   const appSource = readFileSync('src/App.tsx', 'utf8');
   if (!appSource.includes('setEmbeddedWebPanel') || /window\.open\(action\.url/.test(appSource)) {
@@ -297,6 +324,9 @@ async function main() {
   }
   if (!appSource.includes('/api/local-message') || !appSource.includes('mediaAudioCommand')) {
     throw new Error('Instant media command persistence missing');
+  }
+  if (!appSource.includes('internalWebSearchFromAction')) {
+    throw new Error('Search engine actions must be converted to internal Alfred Web Core results');
   }
   const neuralSource = readFileSync('src/components/NeuralNetworkMap.tsx', 'utf8');
   if (!neuralSource.includes('Archivo Neural de conversaciones de subagentes') || !neuralSource.includes('/api/agent-conversations') || !neuralSource.includes('delegatesTo')) {
@@ -307,6 +337,8 @@ async function main() {
   }
   const serverSource = readFileSync('server.ts', 'utf8');
   if (!serverSource.includes('/api/agent-conversations')) throw new Error('Neural conversations API route missing');
+  if (!serverSource.includes('/api/web-core/search')) throw new Error('Internal Web Core search API route missing');
+  if (!serverSource.includes('/api/attachments')) throw new Error('Attachment API route missing');
   const memorySource = readFileSync('src/alfred_core/memory.ts', 'utf8');
   if (!memorySource.includes('getAgentConversationArchive')) throw new Error('Neural conversations archive query missing');
   const supervisorSource = readFileSync('src/alfred_core/supervisor.ts', 'utf8');

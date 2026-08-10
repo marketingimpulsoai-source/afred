@@ -51,7 +51,7 @@ export const HeaderHUD: React.FC<Props> = ({
 }) => {
   const labels = language === 'es' ? TABS_ES : TABS_EN;
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
-  const stateLabel = coreState === 'IDLE' ? 'CORE ONLINE' : coreState;
+  const stateLabel = coreState === 'IDLE' ? 'CORE ONLINE' : coreState === 'TYPING' ? 'AGENT MODE' : coreState;
 
   return (
     <header className="alfred-v3-header sticky top-0 z-50">
@@ -59,7 +59,7 @@ export const HeaderHUD: React.FC<Props> = ({
         <div className="flex flex-col 2xl:flex-row gap-4 2xl:items-center 2xl:justify-between">
           <div className="flex items-center gap-4 min-w-0">
             <div className="v3-logo-orb world" aria-label="ALFRED CORP V3.5 World Core">
-              <AlfredWorldOrb3D size="mini" active={coreState !== 'IDLE'} motion={coreState === 'ROUTING' || coreState === 'PROCESSING' ? 'working' : coreState === 'LISTENING' || coreState === 'SPEAKING' ? 'conversation' : 'idle'} label="ALFRED mini world core" />
+              <AlfredWorldOrb3D size="mini" active={coreState !== 'IDLE'} motion={coreState === 'ROUTING' || coreState === 'PROCESSING' || coreState === 'TYPING' ? 'working' : coreState === 'LISTENING' || coreState === 'SPEAKING' ? 'conversation' : 'idle'} label="ALFRED mini world core" />
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-end gap-3">

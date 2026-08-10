@@ -4,17 +4,19 @@ import {
   Sparkles, BrainCircuit, Aperture, Waves, Network, Shield, Zap, Mic2, Keyboard,
   RadioTower, Wand2, Palette, Clapperboard, BadgeDollarSign, Bot, Cpu, Power,
   Gauge, HardDrive, ServerCog, Clock3, CheckCircle2, CalendarDays, Download,
-  Globe2, ExternalLink, X, Search, Copy, Volume2, VolumeX, Pause, Play,
+  Globe2, ExternalLink, X, Search, Copy, Volume2, VolumeX, Pause, Play, Paperclip, FolderDown,
 } from 'lucide-react';
-import { Language, CoreState, Message, SubAgent, SecurityLevel } from '../types';
+import { Language, CoreState, Message, SubAgent, SecurityLevel, AttachmentRecord } from '../types';
 import { AlfredWorldOrb3D } from './AlfredWorldOrb3D';
 import { NeuralNetworkMap } from './NeuralNetworkMap';
+import { playTypingTick } from '../utils/audioTTS';
 
 interface Props {
   language: Language;
   coreState: CoreState;
   messages: Message[];
   onSendMessage: (text: string) => void;
+  onCoreStateChange: (state: CoreState) => void;
   subAgents: SubAgent[];
   securityLevel: SecurityLevel;
   audioMuted: boolean;
@@ -25,6 +27,7 @@ interface Props {
   embeddedWebPanel: { url: string; label: string; query?: string } | null;
   onNavigateWeb: (panel: { url: string; label: string; query?: string }) => void;
   onCloseEmbeddedWeb: () => void;
+  sessionId?: string;
 }
 
 type PermissionStateLabel = 'unknown' | 'granted' | 'prompt' | 'denied' | 'unsupported';
@@ -36,6 +39,8 @@ type MicDiagnostic = {
   message: string;
 };
 type ConversationDay = { day: string; messageCount: number; sessionCount: number };
+type MicDevice = { deviceId: string; label: string };
+type WebCoreResult = { title: string; url: string; snippet: string };
 type OperationalBriefing = {
   generatedAt: string;
   mission: string;
@@ -132,10 +137,11 @@ function webPanelUrlFromInput(rawInput: string): string {
   if (!input) return 'https://duckduckgo.com/';
   if (/^https?:\/\//i.test(input)) return input;
   if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(input)) return `https://${input}`;
-  return `https://duckduckgo.com/?q=${encodeURIComponent(input)}`;
+  return `/api/web-core/search?q=${encodeURIComponent(input)}`;
 }
 
 function labelFromUrl(url: string): string {
+  if (url.startsWith('/api/web-core/search')) return 'BÚSQUEDA INTERNA ALFRED';
   try {
     return new URL(url).hostname.replace(/^www\./, '').toUpperCase();
   } catch {
@@ -171,6 +177,8 @@ export const AlfredCoreHUD: React.FC<Props> = ({
   embeddedWebPanel,
   onNavigateWeb,
   onCloseEmbeddedWeb,
+  sessionId,
+  onCoreStateChange,
 }) => {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -188,7 +196,16 @@ export const AlfredCoreHUD: React.FC<Props> = ({
   const [showPreviousPreview, setShowPreviousPreview] = useState(false);
   const [webAddressInput, setWebAddressInput] = useState('');
   const [webReloadKey, setWebReloadKey] = useState(0);
+  const [webResults, setWebResults] = useState<WebCoreResult[]>([]);
+  const [webSearchLoading, setWebSearchLoading] = useState(false);
+  const [micDevices, setMicDevices] = useState<MicDevice[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentRecord[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [selectedMicDeviceId, setSelectedMicDeviceId] = useState('');
+  const [micSignalLevel, setMicSignalLevel] = useState(0);
+  const [voiceTestStatus, setVoiceTestStatus] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sessionKey = sessionId || (window as any).__ALFRED_SESSION_ID || 'default';
   const mediaFrameRef = useRef<HTMLIFrameElement>(null);
   const webFrameRef = useRef<HTMLIFrameElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -198,6 +215,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
   const recognitionStartingRef = useRef(false);
   const routineActivationSentRef = useRef(false);
   const conversationUntilRef = useRef(0);
+  const typingTickArmedRef = useRef(false);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -235,6 +253,13 @@ export const AlfredCoreHUD: React.FC<Props> = ({
   }, []);
 
   useEffect(() => {
+    fetch(`/api/attachments?sessionId=${encodeURIComponent(sessionKey)}`)
+      .then(res => res.json())
+      .then(data => setAttachments(Array.isArray(data.attachments) ? data.attachments : []))
+      .catch(() => setAttachments([]));
+  }, [sessionKey]);
+
+  useEffect(() => {
     const checkPermission = async () => {
       try {
         if (!navigator.permissions?.query) {
@@ -265,6 +290,34 @@ export const AlfredCoreHUD: React.FC<Props> = ({
     }
   }, [embeddedWebPanel?.url, embeddedWebPanel?.query]);
 
+  useEffect(() => {
+    if (!embeddedWebPanel?.url?.startsWith('/api/web-core/search')) {
+      setWebResults([]);
+      return;
+    }
+    setWebSearchLoading(true);
+    fetch(embeddedWebPanel.url)
+      .then(res => res.json())
+      .then(data => setWebResults(Array.isArray(data.results) ? data.results : []))
+      .catch(() => setWebResults([]))
+      .finally(() => setWebSearchLoading(false));
+  }, [embeddedWebPanel?.url, webReloadKey]);
+
+  const refreshMicDevices = useCallback(async () => {
+    try {
+      if (!navigator.mediaDevices?.enumerateDevices) return;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter(device => device.kind === 'audioinput').map((device, index) => ({
+        deviceId: device.deviceId,
+        label: device.label || `Micrófono ${index + 1}`,
+      }));
+      setMicDevices(inputs);
+      if (!selectedMicDeviceId && inputs[0]?.deviceId) setSelectedMicDeviceId(inputs[0].deviceId);
+    } catch {}
+  }, [selectedMicDeviceId]);
+
+  useEffect(() => { refreshMicDevices(); }, [refreshMicDevices, permissionState]);
+
   const openWebInsidePanel = useCallback((rawInput: string) => {
     const url = webPanelUrlFromInput(rawInput);
     onNavigateWeb({ url, label: labelFromUrl(url), query: rawInput.trim() || url });
@@ -283,13 +336,16 @@ export const AlfredCoreHUD: React.FC<Props> = ({
 
   const copyCurrentWebLink = useCallback(async () => {
     if (!embeddedWebPanel?.url) return;
+    const copyUrl = embeddedWebPanel.url.startsWith('/api/web-core/search')
+      ? `https://duckduckgo.com/?q=${encodeURIComponent(embeddedWebPanel.query || webAddressInput || '')}`
+      : embeddedWebPanel.url;
     try {
-      await navigator.clipboard.writeText(embeddedWebPanel.url);
+      await navigator.clipboard.writeText(copyUrl);
       setLiveTranscript('Enlace copiado al portapapeles del Jefe Maestro.');
     } catch {
-      setLiveTranscript(`Copie manualmente: ${embeddedWebPanel.url}`);
+      setLiveTranscript(`Copie manualmente: ${copyUrl}`);
     }
-  }, [embeddedWebPanel?.url]);
+  }, [embeddedWebPanel?.url, embeddedWebPanel?.query, webAddressInput]);
 
   const reloadWebPanel = useCallback(() => {
     if (webFrameRef.current) webFrameRef.current.dataset.reloadRequestedAt = String(Date.now());
@@ -303,6 +359,20 @@ export const AlfredCoreHUD: React.FC<Props> = ({
       sendMediaCommand('mute');
     }
   }, [isListening, handsFree, embeddedMediaUrl, embeddedMediaMuted, sendMediaCommand]);
+
+  useEffect(() => {
+    const draft = input.trim().length > 0;
+    if (draft) {
+      onCoreStateChange('TYPING');
+      if (!typingTickArmedRef.current) {
+        typingTickArmedRef.current = true;
+        playTypingTick();
+      }
+    } else if (!isListening && coreState === 'TYPING') {
+      onCoreStateChange('IDLE');
+      typingTickArmedRef.current = false;
+    }
+  }, [input, isListening, coreState, onCoreStateChange]);
 
   const activeCount = subAgents.filter(a => a.status === 'ACTIVE').length;
   const quickPrompts = language === 'es' ? QUICK_ES : QUICK_EN;
@@ -325,12 +395,20 @@ export const AlfredCoreHUD: React.FC<Props> = ({
         setPermissionState('unsupported');
         return false;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-      });
+      const constraints: MediaStreamConstraints = {
+        audio: {
+          deviceId: selectedMicDeviceId ? { exact: selectedMicDeviceId } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       stream.getTracks().forEach(track => track.stop());
       localStorage.setItem(AUTO_HANDS_FREE_KEY, 'true');
       setPermissionState('granted');
+      onCoreStateChange('LISTENING');
       setMicDiagnostic(null);
       return true;
     } catch (error: any) {
@@ -363,16 +441,84 @@ export const AlfredCoreHUD: React.FC<Props> = ({
       if (navigator.mediaDevices?.enumerateDevices) {
         const devices = await navigator.mediaDevices.enumerateDevices();
         deviceCount = devices.filter(device => device.kind === 'audioinput').length;
+        await refreshMicDevices();
       }
     } catch {}
     const message = permission === 'denied'
       ? 'MIC DENIED: Chrome/Edge no volverá a preguntar automáticamente. Abra permisos del sitio, cambie Micrófono a Permitir y recargue.'
       : permission === 'granted'
-        ? `Micrófono permitido. Dispositivos de entrada detectados: ${deviceCount}. Si no transcribe, revise el micrófono predeterminado de Windows.`
+        ? `Micrófono permitido. Dispositivos de entrada detectados: ${deviceCount}. Use “Probar señal” para confirmar que la PC está enviando audio.`
         : `Permiso pendiente. Dispositivos detectados: ${deviceCount}. Pulse “Dar acceso al micrófono”.`;
     setMicDiagnostic({ permission, speechRecognition, mediaDevices, deviceCount, message });
     setLiveTranscript(message);
   };
+
+  const testMicSignal = async () => {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('MediaDevices no disponible');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: selectedMicDeviceId ? { exact: selectedMicDeviceId } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      setPermissionState('granted');
+      await refreshMicDevices();
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const audioContext = new AudioCtx();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      const buffer = new Uint8Array(analyser.frequencyBinCount);
+      let maxLevel = 0;
+      const started = Date.now();
+      const tick = () => {
+        analyser.getByteTimeDomainData(buffer);
+        const level = buffer.reduce((sum, value) => sum + Math.abs(value - 128), 0) / buffer.length;
+        maxLevel = Math.max(maxLevel, level);
+        setMicSignalLevel(Math.min(100, Math.round(level * 5)));
+        if (Date.now() - started < 3200) requestAnimationFrame(tick);
+        else {
+          stream.getTracks().forEach(track => track.stop());
+          audioContext.close();
+          const pct = Math.min(100, Math.round(maxLevel * 5));
+          setMicSignalLevel(pct);
+          setLiveTranscript(pct > 8 ? `Señal de micrófono detectada: ${pct}%. Alfred puede recibir audio desde la PC.` : 'No detecté señal suficiente. Revise micrófono predeterminado, volumen de entrada de Windows o seleccione otro dispositivo.');
+        }
+      };
+      tick();
+    } catch (error: any) {
+      const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
+      setPermissionState(denied ? 'denied' : 'prompt');
+      setLiveTranscript(denied ? 'Permiso de micrófono denegado. Cambie localhost:3000 a Permitir en Chrome/Edge.' : `No pude probar el micrófono: ${error?.message || error?.name || 'error desconocido'}`);
+    }
+  };
+
+  const testLocalVoice = () => {
+    try {
+      const synth = window.speechSynthesis;
+      if (!synth) throw new Error('speechSynthesis no disponible');
+      synth.cancel();
+      const voices = synth.getVoices();
+      const preferred = voices.find(voice => /spanish|es-|sabina|pablo|jorge|diego|helena/i.test(`${voice.name} ${voice.lang}`)) || voices.find(voice => voice.lang?.startsWith('es')) || voices[0];
+      const utterance = new SpeechSynthesisUtterance('Jefe Maestro, esta es una prueba de voz local de Alfred en esta PC.');
+      if (preferred) utterance.voice = preferred;
+      utterance.lang = preferred?.lang || 'es-ES';
+      utterance.rate = 0.92;
+      utterance.pitch = 0.78;
+      utterance.volume = 1;
+      utterance.onstart = () => setVoiceTestStatus(`Voz local reproduciendo: ${preferred?.name || 'voz del sistema'}`);
+      utterance.onend = () => setVoiceTestStatus('Prueba de voz local completada.');
+      utterance.onerror = () => setVoiceTestStatus('La voz local falló. Revise salida de audio de Windows/navegador.');
+      synth.speak(utterance);
+    } catch (error: any) {
+      setVoiceTestStatus(`No pude probar voz local: ${error?.message || 'error desconocido'}`);
+    }
+  };
+
 
   const openMicSettings = () => {
     const opened = window.open('chrome://settings/content/microphone', '_blank');
@@ -489,6 +635,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
       const error = event?.error || 'unknown';
       recognitionStartingRef.current = false;
       setLiveTranscript(language === 'es' ? `Micrófono: ${error}` : `Microphone: ${error}`);
+      if (coreState === 'LISTENING' || coreState === 'TYPING') onCoreStateChange('IDLE');
       setIsListening(false);
       if (!continuous || ['not-allowed', 'service-not-allowed', 'audio-capture'].includes(error)) {
         handsFreeRef.current = false;
@@ -499,6 +646,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
     recognition.onend = () => {
       recognitionStartingRef.current = false;
       setIsListening(false);
+      if (coreState === 'LISTENING' || coreState === 'TYPING') onCoreStateChange('IDLE');
       if (continuous && handsFreeRef.current) {
         if (recognitionRestartTimerRef.current !== null) window.clearTimeout(recognitionRestartTimerRef.current);
         recognitionRestartTimerRef.current = window.setTimeout(() => {
@@ -518,6 +666,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
       recognitionStartingRef.current = true;
       recognition.start();
       setIsListening(true);
+      onCoreStateChange('LISTENING');
       setLiveTranscript(language === 'es' ? 'Alfred escuchando. Diga “Buenos días Alfred”, “Buenas tardes Alfred” o “Buenas noches Alfred”.' : 'Alfred is listening. Say “Good morning Alfred”, “Good afternoon Alfred”, or “Good evening Alfred”.');
       return true;
     } catch (error) {
@@ -584,6 +733,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
   const coreStateLabel = {
     IDLE: language === 'es' ? 'V3 / MANOS LIBRES' : 'V3 / HANDS-FREE',
     LISTENING: language === 'es' ? 'ESCUCHANDO EN TIEMPO REAL' : 'REAL-TIME LISTENING',
+    TYPING: language === 'es' ? 'MODO AGENTE / ESCRIBIENDO' : 'AGENT MODE / TYPING',
     PROCESSING: language === 'es' ? 'PROCESANDO' : 'PROCESSING',
     ROUTING: language === 'es' ? 'ENRUTANDO' : 'ROUTING',
     SPEAKING: language === 'es' ? 'RESPONDIENDO' : 'SPEAKING',
@@ -618,7 +768,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
             aria-label={language === 'es' ? 'Activar mundo 3D manos libres de Alfred' : 'Activate Alfred hands-free 3D world'}
             data-voice-command="activate hands free"
           >
-            <AlfredWorldOrb3D size="hero" active={coreState !== 'IDLE'} motion={coreState === 'ROUTING' || coreState === 'PROCESSING' ? 'working' : coreState === 'LISTENING' || coreState === 'SPEAKING' ? 'conversation' : 'idle'} label="ALFRED 3D world orb" />
+            <AlfredWorldOrb3D size="hero" active={coreState !== 'IDLE' || isListening || input.trim().length > 0} motion={coreState === 'ROUTING' || coreState === 'PROCESSING' || coreState === 'TYPING' ? 'working' : coreState === 'LISTENING' || coreState === 'SPEAKING' ? 'conversation' : input.trim().length > 0 ? 'working' : 'idle'} label="ALFRED 3D world orb" />
           </button>
           <div className="v3-permission-readout">
             <Metric label="MIC" value={permissionState.toUpperCase()} />
@@ -635,7 +785,20 @@ export const AlfredCoreHUD: React.FC<Props> = ({
           </p>
           <div className="v3-mic-repair">
             <button type="button" onClick={runMicDiagnostic}>Diagnóstico micrófono</button>
+            <button type="button" onClick={testMicSignal}>Probar señal</button>
+            <button type="button" onClick={testLocalVoice}>Probar voz local</button>
             <button type="button" onClick={openMicSettings}>Abrir permisos Chrome/Edge</button>
+          </div>
+          <div className="v3-mic-device-panel" aria-label="Diagnóstico PC de micrófono y voz">
+            <label>
+              Micrófono de la PC
+              <select value={selectedMicDeviceId} onChange={(event) => setSelectedMicDeviceId(event.target.value)}>
+                <option value="">Predeterminado de Windows / navegador</option>
+                {micDevices.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label}</option>)}
+              </select>
+            </label>
+            <div className="v3-mic-level"><span style={{ width: `${micSignalLevel}%` }} /></div>
+            <small>Señal detectada: {micSignalLevel}% · {voiceTestStatus || 'Pulse “Probar voz local” para confirmar que Alfred puede hablar en esta PC.'}</small>
           </div>
           {micDiagnostic && (
             <div className="v3-mic-diagnostic" role="status">
@@ -743,7 +906,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
           </div>
 
           <div className="v3-composer">
-            <AudioSpectrum active={coreState === 'SPEAKING' || isListening} />
+            <AudioSpectrum active={coreState === 'SPEAKING' || isListening || coreState === 'TYPING' || input.trim().length > 0} />
             <div className="v3-live-transcript">
               <RadioTower size={13} />
               <span>{liveTranscript || lastVoiceCommand || (language === 'es' ? 'Diga “Buenos días Alfred”, “Buenas tardes Alfred” o “Buenas noches Alfred”.' : 'Say “Good morning Alfred”, “Good afternoon Alfred”, or “Good evening Alfred”.')}</span>
@@ -752,9 +915,12 @@ export const AlfredCoreHUD: React.FC<Props> = ({
               <button onClick={toggleMic} aria-label={language === 'es' ? 'Activar micrófono' : 'Activate microphone'} className={`v3-mic-button ${isListening ? 'listening' : ''}`} data-voice-command="microphone">
                 <Mic size={18} />
               </button>
+              <button type="button" className="v3-attach-button" aria-label={language === 'es' ? 'Adjuntar archivos' : 'Attach files'} onClick={() => document.getElementById('alfred-attachment-input')?.click()}>
+                <Paperclip size={16} />
+              </button>
               <input
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => { setInput(e.target.value); if (e.target.value.trim()) onCoreStateChange('TYPING'); }}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder={language === 'es' ? 'Ordene algo a Alfred Corp V3.5...' : 'Command Alfred Corp V3.5...'}
                 aria-label={language === 'es' ? 'Comando para Alfred Corp V3.5' : 'Command for Alfred Corp V3.5'}
@@ -763,6 +929,49 @@ export const AlfredCoreHUD: React.FC<Props> = ({
                 <Send size={16} /> {language === 'es' ? 'EJECUTAR' : 'EXECUTE'}
               </button>
             </div>
+            <input
+              id="alfred-attachment-input"
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.zip,.json"
+              style={{ display: 'none' }}
+              onChange={async (event) => {
+                const files = Array.from(event.currentTarget.files || []) as File[];
+                event.currentTarget.value = '';
+                if (!files.length) return;
+                setUploadingAttachment(true);
+                try {
+                  await Promise.all(files.map(async (file: File) => {
+                    const dataUrl = await new Promise<string>((resolve, reject) => {
+                      const reader: FileReader = new FileReader();
+                      reader.onload = () => resolve(String(reader.result || ''));
+                      reader.onerror = () => reject(reader.error || new Error('FileReader failed'));
+                      reader.readAsDataURL(file);
+                    });
+                    const response = await fetch('/api/attachments', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        sessionId: sessionKey,
+                        name: file.name,
+                        mimeType: file.type || 'application/octet-stream',
+                        dataBase64: dataUrl.split(',')[1] || '',
+                      }),
+                    });
+                    if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
+                    return response.json();
+                  }));
+                  const res = await fetch(`/api/attachments?sessionId=${encodeURIComponent(sessionKey)}`);
+                  const data = await res.json();
+                  setAttachments(Array.isArray(data.attachments) ? data.attachments : []);
+                  setLiveTranscript(language === 'es' ? 'Archivos guardados en la memoria de Alfred.' : 'Files stored in Alfred memory.');
+                } catch (error: any) {
+                  setLiveTranscript(language === 'es' ? `No pude adjuntar los archivos: ${error?.message || 'error'}` : `Could not attach files: ${error?.message || 'error'}`);
+                } finally {
+                  setUploadingAttachment(false);
+                }
+              }}
+            />
           </div>
         </div>
 
@@ -776,8 +985,22 @@ export const AlfredCoreHUD: React.FC<Props> = ({
           </div>
           <div className="v3-mini-panel">
             <div className="v3-eyebrow small"><Radio size={13} /> Voice system</div>
-            <AudioSpectrum active={coreState === 'SPEAKING' || isListening} tall />
+            <AudioSpectrum active={coreState === 'SPEAKING' || isListening || coreState === 'TYPING' || input.trim().length > 0} tall />
             <p>{coreStateLabel}</p>
+          </div>
+          <div className="v3-mini-panel">
+            <div className="v3-eyebrow small"><FolderDown size={13} /> Adjuntos recientes</div>
+            {attachments.length === 0 ? (
+              <p>{language === 'es' ? 'Todavía no hay archivos guardados en esta sesión.' : 'No files stored in this session yet.'}</p>
+            ) : (
+              <div className="v3-attachment-list">
+                {attachments.slice(0, 5).map(file => (
+                  <a key={file.id} href={`/api/attachments/${file.id}`} download={file.name} className="v3-attachment-pill">
+                    <Paperclip size={12} /> {file.name}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
           <div className="v3-mini-panel">
             <div className="v3-eyebrow small"><Keyboard size={13} /> Run from correct folder</div>
@@ -860,7 +1083,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
               <button type="button" onClick={copyCurrentWebLink} className="v3-web-copy">
                 <Copy size={14} /> Copiar enlace
               </button>
-              <a href={embeddedWebPanel.url} target="_blank" rel="noreferrer" className="v3-web-external">
+              <a href={embeddedWebPanel.url.startsWith('/api/web-core/search') ? `https://duckduckgo.com/?q=${encodeURIComponent(embeddedWebPanel.query || webAddressInput || '')}` : embeddedWebPanel.url} target="_blank" rel="noreferrer" className="v3-web-external">
                 <ExternalLink size={14} /> Abrir fuera
               </a>
               <button type="button" onClick={onCloseEmbeddedWeb} aria-label="Cerrar explorador web"><X size={14} /> Cerrar</button>
@@ -881,17 +1104,35 @@ export const AlfredCoreHUD: React.FC<Props> = ({
             </div>
           </div>
           <div className="v3-web-frame-wrap">
-            <iframe
-              ref={webFrameRef}
-              key={`${embeddedWebPanel.url}_${webReloadKey}`}
-              title="Explorador web interno de Alfred"
-              src={embeddedWebPanel.url}
-              sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-              referrerPolicy="no-referrer-when-downgrade"
-              className="v3-web-frame"
-            />
+            {embeddedWebPanel.url.startsWith('/api/web-core/search') ? (
+              <div className="v3-web-results" aria-label="Resultados internos de Alfred Web Core">
+                {webSearchLoading && <div className="v3-thinking-line"><Loader2 size={13} className="animate-spin" /> Buscando dentro de Alfred Web Core...</div>}
+                {!webSearchLoading && webResults.length === 0 && <p>No encontré resultados internos. Use “Abrir fuera” solo si usted lo indica, Jefe Maestro.</p>}
+                {webResults.map((result, index) => (
+                  <article key={`${result.url}_${index}`} className="v3-web-result-card">
+                    <b>{result.title}</b>
+                    <p>{result.snippet}</p>
+                    <div>
+                      <span>{result.url}</span>
+                      <button type="button" onClick={() => onNavigateWeb({ url: result.url, label: labelFromUrl(result.url), query: result.title })}>Ver dentro</button>
+                      <button type="button" onClick={() => navigator.clipboard?.writeText(result.url).then(() => setLiveTranscript('Enlace copiado al portapapeles.')).catch(() => setLiveTranscript(result.url))}>Copiar</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <iframe
+                ref={webFrameRef}
+                key={`${embeddedWebPanel.url}_${webReloadKey}`}
+                title="Explorador web interno de Alfred"
+                src={embeddedWebPanel.url}
+                sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="v3-web-frame"
+              />
+            )}
             <div className="v3-web-frame-note">
-              Algunas páginas bloquean iframes por seguridad. Si eso ocurre, use “Abrir fuera” solo cuando usted lo indique.
+              Las búsquedas se renderizan dentro de Alfred para evitar rechazos de iframe. Algunas páginas directas aún pueden bloquearse; use “Abrir fuera” solo cuando usted lo indique.
             </div>
           </div>
         </section>

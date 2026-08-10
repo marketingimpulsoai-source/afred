@@ -15,6 +15,7 @@ import { getToolHandler } from '../skills/toolRegistry';
 import { detectDailyActivationRoutine, buildDailyRoutineRoutingDecision } from './dailyActivationRoutines';
 import { buildCryptoMarketAnswer, isCryptoMarketRequest } from './marketData';
 import { buildWebResearchPlan, requiresExternalResearch } from './webResearch';
+import { buildGitHubAnalysisPlan } from './github';
 
 function estimateTokens(text: string): number {
   // Aproximación simple: ~4 caracteres por token (heurística estándar)
@@ -251,6 +252,84 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
       ? '\n\nModo investigación web activado: la respuesta debe distinguir claramente hechos verificados de hipótesis. Si no hay datos extraídos en tiempo real dentro del contexto, no inventes cifras, fechas ni fuentes; indica que abriste fuentes oficiales para verificación y entrega un plan de análisis claro.'
       : '\n\nWeb research mode is active: clearly separate verified facts from hypotheses. If no live extracted data is present in context, do not invent numbers, dates, or sources; state that official-source tabs were opened for verification and provide a clear analysis plan.')
     : '';
+
+  const githubAnalysisPlan = await buildGitHubAnalysisPlan(message, language);
+  if (githubAnalysisPlan) {
+    const responseId = 'msg_' + Date.now();
+    const nowIso = new Date().toLocaleTimeString();
+    const analysis = githubAnalysisPlan.analysis;
+    const summary = analysis
+      ? (language === 'es'
+        ? [
+            `Repositorio: ${analysis.owner}/${analysis.name}`,
+            analysis.description ? `Descripción: ${analysis.description}` : null,
+            analysis.defaultBranch ? `Rama por defecto: ${analysis.defaultBranch}` : null,
+            typeof analysis.stars === 'number' ? `Estrellas: ${analysis.stars}` : null,
+            typeof analysis.forks === 'number' ? `Forks: ${analysis.forks}` : null,
+            typeof analysis.openIssues === 'number' ? `Issues abiertos: ${analysis.openIssues}` : null,
+            analysis.language ? `Lenguaje principal: ${analysis.language}` : null,
+            analysis.readme ? `README: ${analysis.readme.slice(0, 800)}${analysis.readme.length > 800 ? '…' : ''}` : null,
+            analysis.fileTree?.length ? `Archivos iniciales: ${analysis.fileTree.slice(0, 12).map(entry => entry.path).join(', ')}` : null,
+          ].filter(Boolean).join('\n')
+        : [
+            `Repository: ${analysis.owner}/${analysis.name}`,
+            analysis.description ? `Description: ${analysis.description}` : null,
+            analysis.defaultBranch ? `Default branch: ${analysis.defaultBranch}` : null,
+            typeof analysis.stars === 'number' ? `Stars: ${analysis.stars}` : null,
+            typeof analysis.forks === 'number' ? `Forks: ${analysis.forks}` : null,
+            typeof analysis.openIssues === 'number' ? `Open issues: ${analysis.openIssues}` : null,
+            analysis.language ? `Primary language: ${analysis.language}` : null,
+            analysis.readme ? `README: ${analysis.readme.slice(0, 800)}${analysis.readme.length > 800 ? '…' : ''}` : null,
+            analysis.fileTree?.length ? `Initial files: ${analysis.fileTree.slice(0, 12).map(entry => entry.path).join(', ')}` : null,
+          ].filter(Boolean).join('\n'))
+      : (language === 'es'
+        ? 'No pude obtener metadatos públicos del repositorio, pero preparé el enlace para abrirlo y revisar el código manualmente.'
+        : 'I could not obtain public metadata from the repository, but I prepared the link so you can open it and inspect the code manually.');
+    const responseText = enforcePersonalityRules(githubAnalysisPlan.textPrefix + summary, language);
+    const routingDecision = {
+      query: message,
+      chosenAgentId: 'webb',
+      chosenAgentName: 'Webb',
+      confidence: 96,
+      reasoningES: 'El mensaje contiene un repositorio GitHub; Alfred realizó análisis público del repositorio antes de responder.',
+      reasoningEN: 'The message contains a GitHub repository; Alfred performed a public repository analysis before answering.',
+      candidates: [{ agentId: 'webb', score: 96, reason: 'github_repository_analysis' }],
+      latencyMs: Date.now() - startTime,
+      method: 'direct' as const,
+    };
+    const latencyMs = Date.now() - startTime;
+    const tokensUsed = estimateTokens(message + responseText);
+    saveMessage({ id: 'usr_' + Date.now(), sessionId, sender: 'user', text: message, timestamp: nowIso, createdAt: startTime, language });
+    saveMessage({ id: responseId, sessionId, sender: 'subagent', agentId: 'webb', agentName: 'Webb', text: responseText, timestamp: nowIso, createdAt: Date.now(), language, routingDecision, confidenceScore: 96 });
+    saveTelemetry({
+      id: 'log_' + Date.now(),
+      timestamp: nowIso,
+      createdAt: Date.now(),
+      query: message,
+      assignedAgentId: 'webb',
+      assignedAgentName: 'Webb — GitHub Repository Analysis',
+      latencyMs,
+      tokensUsed,
+      confidence: 96,
+      status: 'SUCCESS',
+      policyCheck: 'Public GitHub repo analysis only; no secret access or write actions executed',
+      toolsInvokedCount: githubAnalysisPlan.uiActions.length,
+      costEstimateUsd: 0,
+    });
+    return {
+      id: responseId,
+      text: responseText,
+      assignedAgent: getAgentById('webb') || null,
+      routingDecision,
+      toolCallTraces: [],
+      confidenceScore: 96,
+      latencyMs,
+      language,
+      memoryContextUsed: [],
+      uiActions: githubAnalysisPlan.uiActions,
+    };
+  }
+
 
   const llm = getLLMProvider();
   let responseText: string;

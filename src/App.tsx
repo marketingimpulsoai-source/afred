@@ -36,6 +36,18 @@ function withMediaMuteParam(url: string, muted: boolean): string {
   return `${path}?${params.toString()}`;
 }
 
+function internalWebSearchFromAction(url: string, fallback: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, '');
+    if (!['duckduckgo.com', 'google.com', 'bing.com'].includes(host)) return null;
+    const query = parsed.searchParams.get('q') || parsed.searchParams.get('query') || fallback;
+    return `/api/web-core/search?q=${encodeURIComponent(query || fallback || host)}`;
+  } catch {
+    return null;
+  }
+}
+
 // Sesión persistente en localStorage — sobrevive recargas y cierres del navegador
 function getOrCreateSessionId(): string {
   const KEY = 'alfred_session_id';
@@ -62,9 +74,14 @@ export default function App() {
   const [embeddedMediaMuted, setEmbeddedMediaMuted] = useState<boolean>(true);
   const [embeddedWebPanel, setEmbeddedWebPanel] = useState<EmbeddedWebPanel | null>(null);
 
+  useEffect(() => {
+    (window as any).__ALFRED_SESSION_ID = sessionId;
+  }, [sessionId]);
+
   const addToast = (message: string, agentName?: string) => {
     setToasts(prev => [...prev, { id: Date.now().toString(), message, agentName }]);
   };
+
   const removeToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
 
   const executeUiActions = useCallback((actions: UiAction[] = []) => {
@@ -88,7 +105,12 @@ export default function App() {
           addToast(`${action.label}${action.volume ? ` · volumen ${action.volume}` : ''}`, 'ALFRED');
           return;
         }
-        setEmbeddedWebPanel({ url: action.url, label: action.label || 'Navegación web de Alfred', query: action.message });
+        const internalSearchUrl = internalWebSearchFromAction(action.url, action.message || action.label || '');
+        setEmbeddedWebPanel({
+          url: internalSearchUrl || action.url,
+          label: internalSearchUrl ? 'Búsqueda interna Alfred' : (action.label || 'Navegación web de Alfred'),
+          query: action.message || action.label,
+        });
         addToast(
           `${action.label || 'Web abierta'} · abierto dentro de ALFRED WEB CORE`,
           'ALFRED'
@@ -301,6 +323,7 @@ export default function App() {
           <AlfredCoreHUD
             language={language}
             coreState={coreState}
+            onCoreStateChange={setCoreState}
             messages={messages}
             onSendMessage={handleSendMessage}
             subAgents={subAgents}
@@ -308,11 +331,12 @@ export default function App() {
             audioMuted={audioMuted}
             embeddedMediaUrl={embeddedMediaUrl}
             embeddedMediaMuted={embeddedMediaMuted}
-            onToggleEmbeddedMediaMute={(muted) => setEmbeddedMediaMuted(muted)}
+            onToggleEmbeddedMediaMute={setEmbeddedMediaMuted}
             onCloseEmbeddedMedia={() => setEmbeddedMediaUrl(null)}
             embeddedWebPanel={embeddedWebPanel}
             onNavigateWeb={(panel) => setEmbeddedWebPanel(panel)}
             onCloseEmbeddedWeb={() => setEmbeddedWebPanel(null)}
+            sessionId={sessionId}
           />
         )}
         {activeTab === 'agents' && <SubAgentsGrid subAgents={subAgents} language={language} />}

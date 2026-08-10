@@ -1,6 +1,6 @@
 export type Language = 'es' | 'en';
 export type SecurityLevel = 'STRICT' | 'BALANCED' | 'DEV';
-export type CoreState = 'IDLE' | 'LISTENING' | 'PROCESSING' | 'ROUTING' | 'SPEAKING' | 'ERROR';
+export type CoreState = 'IDLE' | 'LISTENING' | 'TYPING' | 'PROCESSING' | 'ROUTING' | 'SPEAKING' | 'ERROR';
 export type OrbMotionLevel = 'idle' | 'conversation' | 'working';
 export type AgentStatus = 'ACTIVE' | 'BUSY' | 'STANDBY' | 'OFFLINE';
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -174,6 +174,33 @@ export interface MemoryRecord {
 export interface MemorySearchResult {
   record: MemoryRecord;
   similarity: number;
+}
+
+export interface AttachmentRecord {
+  id: string;
+  sessionId: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  storagePath: string;
+  createdAt: number;
+  sha256?: string;
+}
+
+export interface GitHubRepoAnalysis {
+  repositoryUrl: string;
+  owner: string;
+  name: string;
+  defaultBranch?: string;
+  description?: string;
+  stars?: number;
+  forks?: number;
+  openIssues?: number;
+  language?: string;
+  readme?: string;
+  fileTree?: Array<{ path: string; type: string }>;
+  cloneUrl?: string;
+  htmlUrl?: string;
 }
 
 export interface SystemMetrics {

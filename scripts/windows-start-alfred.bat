@@ -16,5 +16,10 @@ set SERPER_API_KEY=
 start "ALFRED CORE SERVER" /min cmd /c "node dist\server.mjs"
 timeout /t 5 /nobreak >nul
 start "ALFRED VOICE BRIDGE" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\Desktop\afred\scripts\windows-alfred-voice-bridge.ps1"
-start "" "http://localhost:3000"
+set "EDGE_PATH=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
+if exist "%EDGE_PATH%" (
+  start "ALFRED EDGE" "%EDGE_PATH%" --new-window "http://localhost:3000"
+) else (
+  start "ALFRED EDGE" "microsoft-edge:http://localhost:3000"
+)
 endlocal

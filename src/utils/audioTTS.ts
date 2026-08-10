@@ -151,6 +151,35 @@ const fallbackTTS = (text: string, language: string, onEnd: () => void, onStart?
   }
 };
 
+export const playTypingTick = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    const ctx = new AudioContextClass();
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(920, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(680, ctx.currentTime + 0.06);
+
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(700, ctx.currentTime);
+
+    gainNode.gain.setValueAtTime(0, ctx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.04, ctx.currentTime + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+
+    osc.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.08);
+  } catch (e) {
+    console.warn('Typing tick no soportado o bloqueado', e);
+  }
+};
+
 export const playAcknowledgmentChime = () => {
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;

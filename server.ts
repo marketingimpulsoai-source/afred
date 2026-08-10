@@ -4,12 +4,13 @@
 // ═══════════════════════════════════════════════════════════════════════
 import 'dotenv/config';
 import express from 'express';
+import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { processUserRequest, getUptimeSeconds, getTotalQueries } from './src/alfred_core/supervisor';
 import { getLLMProvider } from './src/alfred_core/llmProvider';
-import { getMessagesBySession, getMessagesByDay, getConversationDays, getRecentTelemetry, getAgentWorkReport, getAgentConversationArchive, saveMessage } from './src/alfred_core/memory';
+import { getMessagesBySession, getMessagesByDay, getConversationDays, getRecentTelemetry, getAgentWorkReport, getAgentConversationArchive, saveMessage, saveAttachment, listAttachments, getAttachmentById } from './src/alfred_core/memory';
 import PDFDocument from 'pdfkit';
 import { SUB_AGENTS, AGENT_TOOLS, SAFETY_POLICIES } from './src/data/alfredData';
 import { BUSINESS_AGENTS, CLIENT_SEGMENTS, PAGE_VIDEO_FACTORY, findBusinessMatches } from './src/data/businessAgents';
@@ -25,7 +26,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -97,6 +98,37 @@ app.get('/api/market/crypto', async (req, res) => {
   res.json(result);
 });
 
+app.get('/api/web-core/search', async (req, res) => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (!q) return res.status(400).json({ error: 'query required' });
+  const fallback = [
+    { title: `DuckDuckGo: ${q}`, url: `https://duckduckgo.com/?q=${encodeURIComponent(q)}`, snippet: 'Abrir búsqueda externa solo si el Jefe Maestro lo indica.' },
+    { title: `Bing: ${q}`, url: `https://www.bing.com/search?q=${encodeURIComponent(q)}`, snippet: 'Fuente alternativa para contrastar resultados.' },
+    { title: `Google: ${q}`, url: `https://www.google.com/search?q=${encodeURIComponent(q)}`, snippet: 'Fuente alternativa; puede bloquear iframe.' },
+  ];
+  try {
+    const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
+    const html = await fetch(ddgUrl, { headers: { 'user-agent': 'Mozilla/5.0 ALFRED-WebCore/1.0' } }).then(r => r.text());
+    const results = [...html.matchAll(/<a rel="nofollow" class="result__a" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g)]
+      .slice(0, 8)
+      .map(match => {
+        const rawUrl = match[1].replace(/&amp;/g, '&');
+        let url = rawUrl;
+        try {
+          const parsed = new URL(rawUrl, 'https://duckduckgo.com');
+          const uddg = parsed.searchParams.get('uddg');
+          if (uddg) url = decodeURIComponent(uddg);
+        } catch {}
+        const clean = (value: string) => value.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+        return { title: clean(match[2]), url, snippet: clean(match[3]) };
+      })
+      .filter(item => item.title && item.url);
+    res.json({ query: q, source: results.length ? 'duckduckgo-html' : 'fallback', results: results.length ? results : fallback });
+  } catch (err: any) {
+    res.json({ query: q, source: 'fallback', warning: String(err?.message || err), results: fallback });
+  }
+});
+
 app.get('/api/integrations/revenuecat', (req, res) => {
   res.json({ revenueCat: getRevenueCatMcpStatus() });
 });
@@ -158,12 +190,54 @@ app.get('/api/history-days', (req, res) => {
   res.json({ days: getConversationDays(limit) });
 });
 
-app.get('/api/history-day/:day.pdf', (req, res) => {
+app.get('/api/history-day/:day', (req, res, next) => {
+  if (String(req.params.day).endsWith('.pdf')) return next();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.day)) {
     return res.status(400).json({ error: 'day must use YYYY-MM-DD' });
   }
   const sessionId = typeof req.query.sessionId === 'string' ? req.query.sessionId : undefined;
-  const messages = getMessagesByDay(req.params.day, sessionId, 50000);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 10000, 1), 50000);
+  const messages = getMessagesByDay(req.params.day, sessionId, limit);
+  res.json({ day: req.params.day, sessionId: sessionId || null, messageCount: messages.length, messages });
+});
+
+app.get('/api/attachments', (req, res) => {
+  const sessionId = typeof req.query.sessionId === 'string' ? req.query.sessionId : undefined;
+  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 1000);
+  res.json({ attachments: listAttachments(sessionId, limit) });
+});
+
+app.get('/api/attachments/:id', (req, res) => {
+  const attachment = getAttachmentById(req.params.id);
+  if (!attachment) return res.status(404).json({ error: 'Attachment not found' });
+  res.download(attachment.storagePath, attachment.name);
+});
+
+app.post('/api/attachments', (req, res) => {
+  const { sessionId, name, mimeType, dataBase64 } = req.body || {};
+  if (!sessionId || !name || !mimeType || !dataBase64) {
+    return res.status(400).json({ error: 'sessionId, name, mimeType and dataBase64 are required' });
+  }
+  const id = `att_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const sha256 = crypto.createHash('sha256').update(Buffer.from(String(dataBase64), 'base64')).digest('hex');
+  const attachment = saveAttachment({
+    id,
+    sessionId: String(sessionId),
+    name: String(name),
+    mimeType: String(mimeType),
+    base64: String(dataBase64),
+    sha256,
+  });
+  res.status(201).json({ attachment });
+});
+
+app.get('/api/history-day/:day.pdf', (req, res) => {
+  const day = String(req.params.day).replace(/\.pdf$/i, '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    return res.status(400).json({ error: 'day must use YYYY-MM-DD' });
+  }
+  const sessionId = typeof req.query.sessionId === 'string' ? req.query.sessionId : undefined;
+  const messages = getMessagesByDay(day, sessionId, 50000);
   const chunks: Buffer[] = [];
   const doc = new PDFDocument({ margin: 42, size: 'A4', bufferPages: true });
   doc.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -192,17 +266,6 @@ app.get('/api/history-day/:day.pdf', (req, res) => {
   });
   doc.end();
 });
-
-app.get('/api/history-day/:day', (req, res) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.day)) {
-    return res.status(400).json({ error: 'day must use YYYY-MM-DD' });
-  }
-  const sessionId = typeof req.query.sessionId === 'string' ? req.query.sessionId : undefined;
-  const limit = Math.min(Math.max(Number(req.query.limit) || 10000, 1), 50000);
-  const messages = getMessagesByDay(req.params.day, sessionId, limit);
-  res.json({ day: req.params.day, sessionId: sessionId || null, messageCount: messages.length, messages });
-});
-
 
 
 app.get('/api/agent-work', (req, res) => {
