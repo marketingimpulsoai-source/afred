@@ -13,8 +13,11 @@ set MINIMAX_SUBSCRIPTION_KEY=
 set MINIMAX_API_KEY=
 set STITCH_MCP_API_KEY=
 set SERPER_API_KEY=
+curl -fsS "http://localhost:3000/api/health" >nul 2>&1
+if %errorlevel%==0 goto STARTED
 start "ALFRED CORE SERVER" /min cmd /c "node dist\server.mjs"
 timeout /t 5 /nobreak >nul
+:STARTED
 start "ALFRED VOICE BRIDGE" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\Desktop\afred\scripts\windows-alfred-voice-bridge.ps1"
 set "CHROME_PATH=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
 set "ALFRED_CHROME_PROFILE=%LOCALAPPDATA%\AlfredChromeProfile"

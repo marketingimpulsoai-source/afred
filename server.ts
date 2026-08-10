@@ -6,6 +6,7 @@ import './src/env';
 import express from 'express';
 import crypto from 'crypto';
 import path from 'path';
+import http from 'http';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { processUserRequest, getUptimeSeconds, getTotalQueries } from './src/alfred_core/supervisor';
@@ -398,7 +399,26 @@ async function startServer() {
     app.use((req, res) => res.sendFile(path.join(distPath, 'index.html')));
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = http.createServer(app);
+  server.on('error', async (err: any) => {
+    if (err?.code === 'EADDRINUSE') {
+      try {
+        const healthUrl = `http://127.0.0.1:${PORT}/api/health`;
+        const response = await fetch(healthUrl, { signal: AbortSignal.timeout(2000) });
+        if (response.ok) {
+          console.log(`\n[ALFRED CORE] Ya hay una instancia activa en http://127.0.0.1:${PORT}; saliendo sin error.`);
+          process.exit(0);
+          return;
+        }
+      } catch {
+        // If the port is occupied but health is not reachable, fall through.
+      }
+    }
+    console.error('[ALFRED CORE] Server error:', err);
+    process.exit(1);
+  });
+
+  server.listen(PORT, '0.0.0.0', () => {
     const llm = getLLMProvider();
     console.log(`\n[ALFRED CORE] En línea en http://0.0.0.0:${PORT}`);
     console.log(`[ALFRED CORE] Motor LLM: ${llm.name()} (${llm.modelName()}) — Disponible: ${llm.isAvailable()}`);
