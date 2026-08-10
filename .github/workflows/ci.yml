@@ -27,3 +27,11 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke (API + Browser Worker + Modo Agente)
+        run: npm run smoke
+        env:
+          ALFRED_HOST: 127.0.0.1

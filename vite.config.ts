@@ -15,4 +15,17 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          three: ['three'],
+          dataviz: ['d3'],
+          icons: ['lucide-react'],
+        },
+      },
+    },
+  },
 });

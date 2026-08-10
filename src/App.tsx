@@ -1,21 +1,26 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { HeaderHUD } from './components/HeaderHUD';
 import { AlfredCoreHUD } from './components/AlfredCoreHUD';
-import { SubAgentsGrid } from './components/SubAgentsGrid';
-import { ToolsEngine } from './components/ToolsEngine';
-import { PoliciesGuardrails } from './components/PoliciesGuardrails';
-import { ObservabilityDashboard } from './components/ObservabilityDashboard';
-import { DocsArchitecture } from './components/DocsArchitecture';
-import { NeuralNetworkMap } from './components/NeuralNetworkMap';
 import { ToastNotification, Toast } from './components/ToastNotification';
-import { MemoryVault, SettingsPanel, ArchitectureDeepDive } from './components/EnhancedPanels';
-import { BusinessAgentsCommand } from './components/BusinessAgentsCommand';
-import { MediaCommandCenter } from './components/MediaCommandCenter';
 import { Language, SecurityLevel, CoreState, Message, SubAgent, TabId, UiAction } from './types';
 import { SUB_AGENTS } from './data/alfredData';
 import { playAudioTTS, playAcknowledgmentChime } from './utils/audioTTS';
 import { timeBasedGreeting } from './alfred_core/personality';
 import './styles/alfredV2.css';
+
+// Paneles secundarios en carga diferida: el arranque solo descarga el HUD
+// principal, no d3/three/paneles de negocio.
+const SubAgentsGrid = lazy(() => import('./components/SubAgentsGrid').then(m => ({ default: m.SubAgentsGrid })));
+const ToolsEngine = lazy(() => import('./components/ToolsEngine').then(m => ({ default: m.ToolsEngine })));
+const PoliciesGuardrails = lazy(() => import('./components/PoliciesGuardrails').then(m => ({ default: m.PoliciesGuardrails })));
+const ObservabilityDashboard = lazy(() => import('./components/ObservabilityDashboard').then(m => ({ default: m.ObservabilityDashboard })));
+const DocsArchitecture = lazy(() => import('./components/DocsArchitecture').then(m => ({ default: m.DocsArchitecture })));
+const NeuralNetworkMap = lazy(() => import('./components/NeuralNetworkMap').then(m => ({ default: m.NeuralNetworkMap })));
+const BusinessAgentsCommand = lazy(() => import('./components/BusinessAgentsCommand').then(m => ({ default: m.BusinessAgentsCommand })));
+const MediaCommandCenter = lazy(() => import('./components/MediaCommandCenter').then(m => ({ default: m.MediaCommandCenter })));
+const MemoryVault = lazy(() => import('./components/EnhancedPanels').then(m => ({ default: m.MemoryVault })));
+const SettingsPanel = lazy(() => import('./components/EnhancedPanels').then(m => ({ default: m.SettingsPanel })));
+const ArchitectureDeepDive = lazy(() => import('./components/EnhancedPanels').then(m => ({ default: m.ArchitectureDeepDive })));
 
 function getSpokenText(text: string): string {
   const seen = new Set<string>();
@@ -118,6 +123,9 @@ export default function App() {
         }
         if (action.target === 'browser') {
           const browserUrl = internalWebSearchFromAction(action.url, action.message || action.label || '') || action.url;
+          const label = action.label || 'Web abierta';
+          addToast(`${label} · Browser Worker ejecutando`, 'ALFRED');
+          // El resultado del worker sí se muestra: éxito, bloqueo, confirmación o error.
           fetch('/api/browser-worker/command', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -128,8 +136,19 @@ export default function App() {
               allowPrivate: browserUrl.startsWith('/') || browserUrl.includes('localhost') || browserUrl.includes('127.0.0.1'),
               screenshot: true,
             }),
-          }).catch(() => {});
-          addToast(`${action.label || 'Web abierta'} · Browser Worker activado`, 'ALFRED');
+          })
+            .then(res => res.json())
+            .then((result: { status?: string; url?: string; title?: string; screenshotUrl?: string; message?: string; error?: string }) => {
+              if (result.status === 'SUCCESS') {
+                addToast(`${label} · verificado: ${result.title || result.url}`, 'ALFRED');
+                if (result.screenshotUrl) {
+                  setEmbeddedWebPanel({ url: result.screenshotUrl, label: `Evidencia · ${label}`, query: result.url });
+                }
+                return;
+              }
+              addToast(`${label} · ${result.status || 'ERROR'}: ${result.message || result.error || 'sin detalle'}`, 'ALFRED');
+            })
+            .catch(err => addToast(`${label} · Browser Worker no respondió: ${String(err)}`, 'ALFRED'));
           return;
         }
         const internalSearchUrl = internalWebSearchFromAction(action.url, action.message || action.label || '');
@@ -144,7 +163,7 @@ export default function App() {
         );
       }
     });
-  }, [embeddedMediaMuted]);
+  }, [embeddedMediaMuted, sessionId]);
 
   // ── Cargar historial persistente real desde SQLite al montar ──────────
   useEffect(() => {
@@ -385,17 +404,19 @@ export default function App() {
             sessionId={sessionId}
           />
         )}
-        {activeTab === 'agents' && <SubAgentsGrid subAgents={subAgents} language={language} />}
-        {activeTab === 'business' && <BusinessAgentsCommand language={language} />}
-        {activeTab === 'media' && <MediaCommandCenter language={language} />}
-        {activeTab === 'tools' && <ToolsEngine language={language} />}
-        {activeTab === 'policies' && <PoliciesGuardrails language={language} />}
-        {activeTab === 'observability' && <ObservabilityDashboard language={language} />}
-        {activeTab === 'architecture' && <ArchitectureDeepDive language={language} />}
-        {activeTab === 'settings' && <SettingsPanel language={language} />}
-        {activeTab === 'network' && <NeuralNetworkMap language={language} subAgents={subAgents} activityVersion={agentActivityVersion + messages.length} messages={messages} />}
-        {activeTab === 'memory' && <MemoryVault language={language} />}
-        {activeTab === 'docs' && <DocsArchitecture language={language} />}
+        <Suspense fallback={<div className="v3-thinking-line" role="status">{language === 'es' ? 'Cargando módulo...' : 'Loading module...'}</div>}>
+          {activeTab === 'agents' && <SubAgentsGrid subAgents={subAgents} language={language} />}
+          {activeTab === 'business' && <BusinessAgentsCommand language={language} />}
+          {activeTab === 'media' && <MediaCommandCenter language={language} />}
+          {activeTab === 'tools' && <ToolsEngine language={language} />}
+          {activeTab === 'policies' && <PoliciesGuardrails language={language} />}
+          {activeTab === 'observability' && <ObservabilityDashboard language={language} />}
+          {activeTab === 'architecture' && <ArchitectureDeepDive language={language} />}
+          {activeTab === 'settings' && <SettingsPanel language={language} />}
+          {activeTab === 'network' && <NeuralNetworkMap language={language} subAgents={subAgents} activityVersion={agentActivityVersion + messages.length} messages={messages} />}
+          {activeTab === 'memory' && <MemoryVault language={language} />}
+          {activeTab === 'docs' && <DocsArchitecture language={language} />}
+        </Suspense>
       </main>
 
       <footer className="v2-footer relative z-10">

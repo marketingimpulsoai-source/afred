@@ -1,6 +1,15 @@
 import React from 'react';
-import * as Icons from 'lucide-react';
+import {
+  BarChart3, Bot, BrainCircuit, Building2, Code2, FileText, Headphones,
+  Languages, Megaphone, Plug, Rocket, Server, ShieldCheck, type LucideIcon,
+} from 'lucide-react';
 import { Language, SubAgent } from '../types';
+
+// Mapa explícito: evita importar todo lucide-react en el bundle.
+const AGENT_ICONS: Record<string, LucideIcon> = {
+  BarChart3, BrainCircuit, Building2, Code2, FileText, Headphones,
+  Languages, Megaphone, Plug, Rocket, Server, ShieldCheck,
+};
 
 interface Props {
   subAgents: SubAgent[];
@@ -21,7 +30,7 @@ export const SubAgentsGrid: React.FC<Props> = ({ subAgents, language }) => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {subAgents.map((agent) => {
-          const IconComp = (Icons as any)[agent.iconName] || Icons.Bot;
+          const IconComp = AGENT_ICONS[agent.iconName] || Bot;
           const name = language === 'es' ? agent.nameES : agent.nameEN;
           const role = language === 'es' ? agent.roleES : agent.roleEN;
           const desc = language === 'es' ? agent.descriptionES : agent.descriptionEN;

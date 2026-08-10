@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import * as Icons from 'lucide-react';
+import { Clapperboard, GraduationCap, LineChart, Network, Store } from 'lucide-react';
 import { BusinessAgent, Language } from '../types';
 import { BUSINESS_AGENTS, CLIENT_SEGMENTS, PAGE_VIDEO_FACTORY } from '../data/businessAgents';
 
@@ -143,7 +143,7 @@ const FactoryList: React.FC<{ title: string; items: string[]; color: 'cyan' | 'p
 const BusinessCard: React.FC<{ agent: BusinessAgent; language: Language }> = ({ agent, language }) => {
   const isES = language === 'es';
   const color = divisionColors[agent.division];
-  const Icon = agent.division === 'Risk & Finance' ? Icons.LineChart : agent.division === 'Client Delivery Studio' ? Icons.Clapperboard : agent.division === 'Vertical SaaS & Marketplaces' ? Icons.Store : agent.division === 'Digital Products & EdTech' ? Icons.GraduationCap : Icons.Network;
+  const Icon = agent.division === 'Risk & Finance' ? LineChart : agent.division === 'Client Delivery Studio' ? Clapperboard : agent.division === 'Vertical SaaS & Marketplaces' ? Store : agent.division === 'Digital Products & EdTech' ? GraduationCap : Network;
   return (
     <article className="hud-card chamfer-sm p-4 relative" data-sector={agent.code} style={{ borderColor: `${color}44` }}>
       <div className="flex items-start justify-between mt-3 gap-3">
