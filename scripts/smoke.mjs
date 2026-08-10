@@ -297,7 +297,7 @@ async function main() {
     throw new Error('Windows voice bridge does not wire recognition to Alfred chat');
   }
   const startupSource = readFileSync(startupLauncher, 'utf8');
-  if (!startupSource.includes('windows-alfred-voice-bridge.ps1') || !startupSource.includes('msedge.exe')) throw new Error('Startup launcher does not start voice bridge or Edge');
+  if (!startupSource.includes('windows-alfred-voice-bridge.ps1') || !startupSource.includes('chrome.exe')) throw new Error('Startup launcher does not start voice bridge or Chrome');
 
   const coreHudSource = readFileSync('src/components/AlfredCoreHUD.tsx', 'utf8');
   if (!coreHudSource.includes('CHAT_RECENT_LIMIT = 6') || !coreHudSource.includes('Ver texto anterior')) {

@@ -17,7 +17,8 @@ Implementación funcional en React + Vite + Express + TypeScript, ahora alineada
 - Memoria persistente real con SQLite.
 - Telemetría persistente.
 - TTS masculino bilingüe: ElevenLabs Rupert/Alfred (`89gcX1AeMGgcsN8ypHLu`, `eleven_multilingual_v2`) → Gemini TTS → Web Speech API local. Preview en `public/audio/alfred-rupert-preview.mp3`.
-- **Panel ALFRED CORP V3.5**: Stitch Cyberpunk Nexus Fusion con los 10 ZIPs de Stitch importados, referencia visual `https://alfred-ai-butle.ai.studio/`, glass/chamfer panels, scanline, data-grid, shader backplane, flicker, waveform, Three.js orbital motif y matriz `STITCH FUSION MATRIX`.
+- **Panel ALFRED WEB CORE**: Stitch Cyberpunk Nexus Fusion con los 10 ZIPs de Stitch importados, referencia visual `https://alfred-ai-butle.ai.studio/`, glass/chamfer panels, scanline, data-grid, shader backplane, flicker, waveform, Three.js orbital motif y matriz `STITCH FUSION MATRIX`.
+- **Lanzador Windows**: abre Alfred automáticamente en Google Chrome para mayor compatibilidad con la interfaz y el micrófono.
 - Personalidad estricta: siempre trata al usuario como **Jefe Maestro**; saludo por horario (`Buenos días/tardes/noches, jefe maestro`) y protocolo de tareas `Entendido, Jefe Maestro` al iniciar/finalizar.
 - Secciones nuevas: Login Biométrico Fortress, Ajustes, HUD Móvil, Memoria Minerva, Arquitectura Operativa, Red Neuronal y **Negocios + Clientes**.
 - **Business Command Layer**: 16 especialistas de negocio basados en los documentos del portafolio (`S1`, `SL1`, `A8`, `B3`, `A1`, `A4`, `RE1`, `A5`, `A6`, `A7`, `A9`, `A10`, `A11`, etc.), fábrica universal de páginas/videos para todo tipo de clientes, playbooks, guardrails y endpoints `/api/business-agents` + `/api/business-agents/route`.
