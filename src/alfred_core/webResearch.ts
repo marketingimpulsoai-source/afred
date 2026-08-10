@@ -68,8 +68,8 @@ export function buildWebResearchPlan(message: string, language: Language): WebRe
   ];
 
   const textPrefix = language === 'es'
-    ? 'Jefe Maestro, activé investigación web porque esta consulta requiere información externa o actual. Preparé el panel ALFRED WEB CORE con búsquedas orientadas a fuentes oficiales y documentación primaria. Si no puedo verificar un dato con fuente real, lo marcaré como no verificado en vez de inventarlo.\n\n'
-    : 'Jefe Maestro, I activated web research because this request requires external or current information. I prepared the ALFRED WEB CORE panel with searches aimed at official sources and primary documentation. If I cannot verify a claim with a real source, I will mark it as unverified instead of inventing it.\n\n';
+    ? 'Investigación web activada. Verificaré solo fuentes oficiales y marcaré lo no verificado.\n\n'
+    : 'Web research activated. I will verify only official sources and mark anything unverified.\n\n';
 
   return { shouldResearch: true, textPrefix, uiActions };
 }

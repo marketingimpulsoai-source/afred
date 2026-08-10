@@ -72,7 +72,33 @@ export function buildAlfredSystemPrompt(language: Language, delegatedAgent: SubA
  * usuario de forma incorrecta, se corrige aquí como última línea de defensa.
  * Esto NO reemplaza el prompt engineering — es una red de seguridad.
  */
-export function enforcePersonalityRules(text: string, language: Language): string {
+function collapseAdjacentDuplicateParagraphs(text: string): string {
+  const paragraphs = text
+    .split(/\n\s*\n+/)
+    .map(paragraph => paragraph.trim())
+    .filter(Boolean);
+
+  const output: string[] = [];
+  let previousNormalized = '';
+
+  for (const paragraph of paragraphs) {
+    const normalized = paragraph
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9ñ]+/g, ' ')
+      .replace(/\s+/g, ' ') 
+      .trim();
+    if (!normalized) continue;
+    if (normalized === previousNormalized) continue;
+    output.push(paragraph);
+    previousNormalized = normalized;
+  }
+
+  return output.join('\n\n');
+}
+
+export function enforcePersonalityRules(text: string, _language: Language): string {
   // Eliminar emojis comunes (rango unicode extendido)
   let cleaned = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '');
 
@@ -81,5 +107,6 @@ export function enforcePersonalityRules(text: string, language: Language): strin
     .replace(/\bSeñor\b(?!\s+Maestro)/gi, 'Jefe Maestro')
     .replace(/\bSir\b(?!\s+Maestro)/gi, 'Jefe Maestro');
 
+  cleaned = collapseAdjacentDuplicateParagraphs(cleaned);
   return cleaned.trim();
 }

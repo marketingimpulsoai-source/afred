@@ -33,6 +33,14 @@ function normalizeFast(text: string): string {
   return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
 }
 
+function prependUniquePrefix(prefix: string, text: string): string {
+  const normalizedPrefix = normalizeFast(prefix);
+  const normalizedText = normalizeFast(text);
+  if (!prefix.trim()) return text;
+  if (normalizedText.startsWith(normalizedPrefix) || normalizedText.includes(normalizedPrefix)) return text;
+  return prefix + text;
+}
+
 function buildFastConversationReply(message: string, language: 'es' | 'en'): string | null {
   const q = normalizeFast(message);
   if (!q || q.length > 140) return null;
@@ -414,7 +422,7 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
 
   responseText = enforcePersonalityRules(responseText, language);
   if (webResearchPlan) {
-    responseText = enforcePersonalityRules(webResearchPlan.textPrefix + responseText, language);
+    responseText = enforcePersonalityRules(prependUniquePrefix(webResearchPlan.textPrefix, responseText), language);
   }
 
   // ── 4. Ejecución de herramientas SOLO si el sub-agente fue asignado
