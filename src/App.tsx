@@ -223,21 +223,37 @@ export default function App() {
     setCoreState('ROUTING');
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          language,
-          securityLevel,
-          sessionId,
-          history: messages.slice(-10).map(m => ({
-            role: m.sender === 'user' ? 'user' : 'model',
-            text: m.text,
-          })),
-        }),
-      });
+      const payload = {
+        message: text,
+        language,
+        securityLevel,
+        sessionId,
+        history: messages.slice(-10).map(m => ({
+          role: m.sender === 'user' ? 'user' : 'model',
+          text: m.text,
+        })),
+      };
 
+      let response: Response | null = null;
+      let lastError: unknown = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (response.ok) break;
+          lastError = new Error(`HTTP ${response.status}`);
+        } catch (error) {
+          lastError = error;
+        }
+        if (attempt < 3) {
+          await new Promise(resolve => window.setTimeout(resolve, 800 * attempt));
+        }
+      }
+
+      if (!response || !response.ok) throw lastError || new Error('Chat request failed');
       const data = await response.json();
       setCoreState('PROCESSING');
 
@@ -291,15 +307,15 @@ export default function App() {
         sender: 'alfred',
         agentName: 'ALFRED',
         text: language === 'es'
-          ? 'Comprendido, Jefe Maestro. Ha ocurrido un problema de conexión con el núcleo. Por favor, verifique que el servidor esté en ejecución.'
-          : 'Understood, Jefe Maestro. There was a connection issue with the core. Please verify the server is running.',
+          ? 'Comprendido, Jefe Maestro. El núcleo no respondió a tiempo. Reintentaré la conexión automáticamente.'
+          : 'Understood, Jefe Maestro. The core did not respond in time. I will retry the connection automatically.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         createdAt: Date.now(),
         language,
       };
       setMessages(prev => [...prev, fallbackMsg]);
       setCoreState('ERROR');
-      setTimeout(() => setCoreState('IDLE'), 2000);
+      setTimeout(() => setCoreState('IDLE'), 1200);
     }
   }, [messages, language, securityLevel, sessionId, audioMuted]);
 
