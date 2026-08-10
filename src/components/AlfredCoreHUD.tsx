@@ -408,8 +408,14 @@ export const AlfredCoreHUD: React.FC<Props> = ({
       stream.getTracks().forEach(track => track.stop());
       localStorage.setItem(AUTO_HANDS_FREE_KEY, 'true');
       setPermissionState('granted');
-      onCoreStateChange('LISTENING');
       setMicDiagnostic(null);
+      handsFreeRef.current = true;
+      setHandsFree(true);
+      const started = await startRecognition(true, true);
+      if (!started) {
+        handsFreeRef.current = false;
+        setHandsFree(false);
+      }
       return true;
     } catch (error: any) {
       const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
@@ -586,14 +592,14 @@ export const AlfredCoreHUD: React.FC<Props> = ({
     return false;
   }, [handleSend, copyCurrentWebLink, openWebInsidePanel, sendMediaCommand]);
 
-  const startRecognition = useCallback(async (continuous = false) => {
+  const startRecognition = useCallback(async (continuous = false, skipPermissionCheck = false) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setPermissionState('unsupported');
       setLiveTranscript(language === 'es' ? 'Reconocimiento de voz no soportado en este navegador.' : 'Speech recognition is not supported in this browser.');
       return false;
     }
-    const ok = permissionState === 'granted' || await requestMicAccess();
+    const ok = skipPermissionCheck || permissionState === 'granted' || await requestMicAccess();
     if (!ok || recognitionStartingRef.current) return false;
 
     recognitionRef.current?.stop?.();
@@ -667,7 +673,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
       recognition.start();
       setIsListening(true);
       onCoreStateChange('LISTENING');
-      setLiveTranscript(language === 'es' ? 'Alfred escuchando. Diga “Buenos días Alfred”, “Buenas tardes Alfred” o “Buenas noches Alfred”.' : 'Alfred is listening. Say “Good morning Alfred”, “Good afternoon Alfred”, or “Good evening Alfred”.');
+      setLiveTranscript(language === 'es' ? `Alfred escuchando. Diga “Buenos días Alfred”, “Buenas tardes Alfred” o “Buenas noches Alfred”.` : 'Alfred is listening. Say “Good morning Alfred”, “Good afternoon Alfred”, or “Good evening Alfred”.');
       return true;
     } catch (error) {
       recognitionStartingRef.current = false;
@@ -718,7 +724,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
     handsFreeRef.current = true;
     setHandsFree(true);
     localStorage.setItem(AUTO_HANDS_FREE_KEY, 'true');
-    const started = await startRecognition(true);
+    const started = await startRecognition(true, true);
     if (!started) {
       handsFreeRef.current = false;
       setHandsFree(false);
