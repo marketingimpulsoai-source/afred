@@ -289,9 +289,11 @@ async function main() {
   const voiceBridgeScript = 'scripts/windows-alfred-voice-bridge.ps1';
   const voiceBridgeLauncher = 'scripts/windows-start-voice-bridge.bat';
   const startupLauncher = 'scripts/windows-start-alfred.bat';
+  const watchdogScript = 'scripts/windows-alfred-watchdog.ps1';
   if (!existsSync(voiceBridgeScript)) throw new Error('Windows voice bridge script missing');
   if (!existsSync(voiceBridgeLauncher)) throw new Error('Windows voice bridge launcher missing');
   if (!existsSync(startupLauncher)) throw new Error('Windows startup launcher missing');
+  if (!existsSync(watchdogScript)) throw new Error('Windows Alfred watchdog script missing');
   const bridgeSource = readFileSync(voiceBridgeScript, 'utf8');
   if (!bridgeSource.includes('SpeechRecognitionEngine') || !bridgeSource.includes('/api/chat')) {
     throw new Error('Windows voice bridge does not wire recognition to Alfred chat');
