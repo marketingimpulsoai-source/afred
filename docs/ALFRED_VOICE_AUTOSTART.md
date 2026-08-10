@@ -6,10 +6,11 @@ ALFRED debe poder escuchar al Jefe Maestro aunque el micrófono del navegador fa
 
 La solución ahora usa dos capas:
 
-1. **Capa navegador**: Web Speech API cuando Chrome/Edge u otro navegador lo permite.
+1. **Capa navegador**: Web Speech API cuando Chrome u otro navegador lo permite.
 2. **Capa nativa Windows**: `ALFRED Voice Bridge`, un puente PowerShell con `System.Speech` que escucha desde Windows, manda la orden a `http://localhost:3000/api/chat` y responde por voz con el sintetizador de Windows.
 
-Esto evita depender de un solo buscador.
+El arranque principal de Alfred en Windows usa un **VBScript oculto** para abrir **Google Chrome en ventana normal maximizada** sobre `http://localhost:3000`, y un watchdog puede relanzarlo si el servidor no responde.
+Esto evita depender de un solo buscador y evita ventanas visibles de cmd/PowerShell.
 
 ## Comandos principales
 

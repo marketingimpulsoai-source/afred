@@ -18,7 +18,7 @@ Implementación funcional en React + Vite + Express + TypeScript, ahora alineada
 - Telemetría persistente.
 - TTS masculino bilingüe: ElevenLabs Rupert/Alfred (`89gcX1AeMGgcsN8ypHLu`, `eleven_multilingual_v2`) → Gemini TTS → Web Speech API local. Preview en `public/audio/alfred-rupert-preview.mp3`.
 - **Panel ALFRED WEB CORE**: Stitch Cyberpunk Nexus Fusion con los 10 ZIPs de Stitch importados, referencia visual `https://alfred-ai-butle.ai.studio/`, glass/chamfer panels, scanline, data-grid, shader backplane, flicker, waveform, Three.js orbital motif y matriz `STITCH FUSION MATRIX`.
-- **Lanzador Windows**: abre Alfred automáticamente en Google Chrome para mayor compatibilidad con la interfaz y el micrófono.
+- **Lanzador Windows**: un VBScript oculto abre Alfred automáticamente en Google Chrome para mayor compatibilidad con la interfaz y el micrófono, en ventana normal maximizada y con perfil persistente; no deja ventanas visibles de cmd ni PowerShell.
 - **Watchdog Windows**: un chequeo programado puede relanzar Alfred si `localhost:3000` no responde.
 - Personalidad estricta: siempre trata al usuario como **Jefe Maestro**; saludo por horario (`Buenos días/tardes/noches, jefe maestro`) y protocolo de tareas `Entendido, Jefe Maestro` al iniciar/finalizar.
 - Secciones nuevas: Login Biométrico Fortress, Ajustes, HUD Móvil, Memoria Minerva, Arquitectura Operativa, Red Neuronal y **Negocios + Clientes**.

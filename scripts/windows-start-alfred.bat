@@ -17,9 +17,10 @@ start "ALFRED CORE SERVER" /min cmd /c "node dist\server.mjs"
 timeout /t 5 /nobreak >nul
 start "ALFRED VOICE BRIDGE" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%USERPROFILE%\Desktop\afred\scripts\windows-alfred-voice-bridge.ps1"
 set "CHROME_PATH=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+set "ALFRED_CHROME_PROFILE=%LOCALAPPDATA%\AlfredChromeProfile"
 if exist "%CHROME_PATH%" (
-  start "ALFRED CHROME" "%CHROME_PATH%" --new-window "http://localhost:3000"
+  start "" /MAX "%CHROME_PATH%" --new-window "http://localhost:3000" --user-data-dir="%ALFRED_CHROME_PROFILE%"
 ) else (
-  start "ALFRED CHROME" "chrome.exe" "http://localhost:3000"
+  start "" /MAX "chrome.exe" --new-window "http://localhost:3000" --user-data-dir="%ALFRED_CHROME_PROFILE%"
 )
 endlocal

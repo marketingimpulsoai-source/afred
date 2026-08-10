@@ -445,7 +445,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
       }
     } catch {}
     const message = permission === 'denied'
-      ? 'MIC DENIED: Chrome/Edge no volverá a preguntar automáticamente. Abra permisos del sitio, cambie Micrófono a Permitir y recargue.'
+      ? 'MIC DENIED: Chrome no volverá a preguntar automáticamente. Abra permisos del sitio, cambie Micrófono a Permitir y recargue.'
       : permission === 'granted'
         ? `Micrófono permitido. Dispositivos de entrada detectados: ${deviceCount}. Use “Probar señal” para confirmar que la PC está enviando audio.`
         : `Permiso pendiente. Dispositivos detectados: ${deviceCount}. Pulse “Dar acceso al micrófono”.`;
@@ -493,7 +493,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
     } catch (error: any) {
       const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
       setPermissionState(denied ? 'denied' : 'prompt');
-      setLiveTranscript(denied ? 'Permiso de micrófono denegado. Cambie localhost:3000 a Permitir en Chrome/Edge.' : `No pude probar el micrófono: ${error?.message || error?.name || 'error desconocido'}`);
+      setLiveTranscript(denied ? 'Permiso de micrófono denegado. Cambie localhost:3000 a Permitir en Chrome.' : `No pude probar el micrófono: ${error?.message || error?.name || 'error desconocido'}`);
     }
   };
 
@@ -523,7 +523,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
   const openMicSettings = () => {
     const opened = window.open('chrome://settings/content/microphone', '_blank');
     if (!opened) {
-      setLiveTranscript('Abra manualmente Chrome/Edge → Configuración → Privacidad y seguridad → Configuración de sitios → Micrófono → localhost:3000 → Permitir.');
+      setLiveTranscript('Abra manualmente Chrome → Configuración → Privacidad y seguridad → Configuración de sitios → Micrófono → localhost:3000 → Permitir.');
     }
   };
 
@@ -787,7 +787,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
             <button type="button" onClick={runMicDiagnostic}>Diagnóstico micrófono</button>
             <button type="button" onClick={testMicSignal}>Probar señal</button>
             <button type="button" onClick={testLocalVoice}>Probar voz local</button>
-            <button type="button" onClick={openMicSettings}>Abrir permisos Chrome/Edge</button>
+            <button type="button" onClick={openMicSettings}>Abrir permisos Chrome</button>
           </div>
           <div className="v3-mic-device-panel" aria-label="Diagnóstico PC de micrófono y voz">
             <label>
