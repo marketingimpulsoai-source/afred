@@ -16,6 +16,7 @@ import { detectDailyActivationRoutine, buildDailyRoutineRoutingDecision } from '
 import { buildCryptoMarketAnswer, isCryptoMarketRequest } from './marketData';
 import { buildWebResearchPlan, requiresExternalResearch } from './webResearch';
 import { buildGitHubAnalysisPlan } from './github';
+import { buildPerplexityResearchPlan } from './perplexity';
 
 function estimateTokens(text: string): number {
   // Aproximación simple: ~4 caracteres por token (heurística estándar)
@@ -246,6 +247,65 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
       ? `\n\nCapa Business Command Layer detectada:\n${businessMatches.map(m => `- ${m.specialist.name} (${m.specialist.businessIds.join('/')}) — ${m.specialist.roleES}. Entregables: ${m.specialist.deliverablesES.slice(0, 4).join(', ')}.`).join('\n')}\nSi la tarea menciona páginas o videos para clientes, coordina con Alfred-ClientStudio y Alfred-CreativeForge, manteniendo aprobación humana antes de publicar.`
       : `\n\nBusiness Command Layer detected:\n${businessMatches.map(m => `- ${m.specialist.name} (${m.specialist.businessIds.join('/')}) — ${m.specialist.roleEN}. Deliverables: ${m.specialist.deliverablesEN.slice(0, 4).join(', ')}.`).join('\n')}\nIf the task mentions pages or videos for clients, coordinate with Alfred-ClientStudio and Alfred-CreativeForge, keeping human approval before publishing.`)
     : '';
+  const perplexityResearchPlan = await buildPerplexityResearchPlan(message, language);
+  if (perplexityResearchPlan) {
+    const responseId = 'msg_' + Date.now();
+    const nowIso = new Date().toLocaleTimeString();
+    const result = perplexityResearchPlan.result;
+    const citationBlock = result.citations.length > 0
+      ? (language === 'es'
+        ? `\n\nFuentes:\n${result.citations.slice(0, 6).map((cite, idx) => `${idx + 1}. ${cite.title} — ${cite.url}`).join('\n')}`
+        : `\n\nSources:\n${result.citations.slice(0, 6).map((cite, idx) => `${idx + 1}. ${cite.title} — ${cite.url}`).join('\n')}`)
+      : '';
+    const responseText = enforcePersonalityRules(perplexityResearchPlan.textPrefix + result.summary + citationBlock, language);
+    const latencyMs = Date.now() - startTime;
+    const confidence = result.source === 'agent' ? 98 : 92;
+    const routingDecision = {
+      query: message,
+      chosenAgentId: 'webb',
+      chosenAgentName: 'Webb',
+      confidence,
+      reasoningES: result.source === 'agent'
+        ? 'Perplexity Agent API produjo una respuesta web-grounded con fuentes verificadas.'
+        : 'Perplexity Search API produjo resultados crudos y Alfred los convirtió en un resumen verificable.',
+      reasoningEN: result.source === 'agent'
+        ? 'Perplexity Agent API produced a web-grounded answer with verified sources.'
+        : 'Perplexity Search API produced raw results and Alfred converted them into a verifiable summary.',
+      candidates: [{ agentId: 'webb', score: confidence, reason: result.source === 'agent' ? 'perplexity_agent_api' : 'perplexity_search_api' }],
+      latencyMs,
+      method: 'direct' as const,
+    };
+    saveMessage({ id: 'usr_' + Date.now(), sessionId, sender: 'user', text: message, timestamp: nowIso, createdAt: startTime, language });
+    saveMessage({ id: responseId, sessionId, sender: 'subagent', agentId: 'webb', agentName: 'Webb', text: responseText, timestamp: nowIso, createdAt: Date.now(), language, routingDecision, confidenceScore: confidence });
+    saveTelemetry({
+      id: 'log_' + Date.now(),
+      timestamp: nowIso,
+      createdAt: Date.now(),
+      query: message,
+      assignedAgentId: 'webb',
+      assignedAgentName: result.source === 'agent' ? 'Webb — Perplexity Agent Research' : 'Webb — Perplexity Search Research',
+      latencyMs,
+      tokensUsed: estimateTokens(message + responseText),
+      confidence,
+      status: 'SUCCESS',
+      policyCheck: 'Perplexity web-grounded research with search fallback',
+      toolsInvokedCount: perplexityResearchPlan.uiActions.length,
+      costEstimateUsd: 0,
+    });
+    return {
+      id: responseId,
+      text: responseText,
+      assignedAgent: getAgentById('webb') || null,
+      routingDecision,
+      toolCallTraces: [],
+      confidenceScore: confidence,
+      latencyMs,
+      language,
+      memoryContextUsed: [],
+      uiActions: perplexityResearchPlan.uiActions,
+    };
+  }
+
   const webResearchPlan = buildWebResearchPlan(message, language);
   const webResearchBlock = webResearchPlan
     ? (language === 'es'

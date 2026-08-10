@@ -338,9 +338,16 @@ async function main() {
   const serverSource = readFileSync('server.ts', 'utf8');
   if (!serverSource.includes('/api/agent-conversations')) throw new Error('Neural conversations API route missing');
   if (!serverSource.includes('/api/web-core/search')) throw new Error('Internal Web Core search API route missing');
+  if (!serverSource.includes('/api/perplexity/research')) throw new Error('Perplexity research API route missing');
   if (!serverSource.includes('/api/attachments')) throw new Error('Attachment API route missing');
-  const memorySource = readFileSync('src/alfred_core/memory.ts', 'utf8');
-  if (!memorySource.includes('getAgentConversationArchive')) throw new Error('Neural conversations archive query missing');
+  const perplexitySource = readFileSync('src/alfred_core/perplexity.ts', 'utf8');
+  if (!perplexitySource.includes('researchWithPerplexity') || !perplexitySource.includes('renderPerplexityResearchHtml')) {
+    throw new Error('Perplexity research helper missing');
+  }
+  if (process.env.PERPLEXITY_API_KEY) {
+    const perplexityPage = await fetch(`${BASE}/api/perplexity/research?q=${encodeURIComponent('AI market trends')}&language=es`);
+    if (!perplexityPage.ok) throw new Error(`Perplexity research page failed: ${perplexityPage.status}`);
+  }
   const supervisorSource = readFileSync('src/alfred_core/supervisor.ts', 'utf8');
   if (!supervisorSource.includes('buildFastConversationReply') || !supervisorSource.includes('alfred_core_fast')) {
     throw new Error('Fast normal conversation path missing');

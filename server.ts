@@ -21,6 +21,7 @@ import { getMediaRouterStatus, routeMediaRequest } from './src/data/mediaRouter'
 import { getAlfredV3ApiStatus } from './src/integrations/alfredV3Apis';
 import { getOperationalBriefing } from './src/integrations/operationalBriefing';
 import { buildCryptoMarketAnswer } from './src/alfred_core/marketData';
+import { researchWithPerplexity, renderPerplexityResearchHtml } from './src/alfred_core/perplexity';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -96,6 +97,20 @@ app.get('/api/market/crypto', async (req, res) => {
   const result = await buildCryptoMarketAnswer(asset, language);
   if (!result) return res.status(404).json({ error: 'No crypto asset detected' });
   res.json(result);
+});
+
+app.get('/api/perplexity/research', async (req, res) => {
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  const language = req.query.language === 'en' ? 'en' : 'es';
+  if (!q) return res.status(400).send(language === 'es' ? '<h1>Se requiere una consulta</h1>' : '<h1>Query required</h1>');
+  const result = await researchWithPerplexity(q, language);
+  if (!result) {
+    return res
+      .status(503)
+      .type('html')
+      .send(`<!doctype html><html lang="${language}"><head><meta charset="utf-8"><title>Perplexity unavailable</title></head><body style="font-family:system-ui;background:#09111f;color:#e5eefb;padding:24px"><h1>${language === 'es' ? 'Perplexity no está disponible' : 'Perplexity is unavailable'}</h1><p>${language === 'es' ? 'Configura PERPLEXITY_API_KEY en tu entorno para habilitar la investigación profunda.' : 'Set PERPLEXITY_API_KEY in your environment to enable deep research.'}</p></body></html>`);
+  }
+  res.type('html').send(renderPerplexityResearchHtml(result, language));
 });
 
 app.get('/api/web-core/search', async (req, res) => {
