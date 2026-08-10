@@ -7,8 +7,17 @@
 // el handler lo indica explícitamente en vez de inventar datos.
 // ═══════════════════════════════════════════════════════════════════════
 import { Language } from '../types';
+import { executeBrowserWorkerCommand } from '../alfred_core/browserWorker';
+import { searchWeb } from '../alfred_core/webSearch';
 
 type ToolHandler = (params: Record<string, any>, lang: Language) => Promise<any> | any;
+
+/**
+ * Herramientas que ejecutan una acción externa real y verificable. El resto
+ * del catálogo produce entregables declarativos: se marcan con
+ * `executed: false` para no aparentar una ejecución que no ocurrió.
+ */
+const REAL_EXECUTION_TOOLS = new Set(['browser_open_url', 'browser_extract_text', 'web_search_live', 'detect_language']);
 
 const registry: Record<string, ToolHandler> = {
   // ── Thomas — Arquitectura ──────────────────────────────────────────
@@ -192,14 +201,66 @@ const registry: Record<string, ToolHandler> = {
     status: 'TRANSLATED',
     note: lang === 'es' ? 'Traducción completada preservando tono y matiz cultural.' : 'Translation completed preserving tone and cultural nuance.',
   }),
+
+  // ── Webb — Modo agente: navegador real con evidencia ──────────────
+  browser_open_url: async (params, lang) => {
+    const url = String(params.url || params.query || '').trim();
+    if (!url) {
+      return { status: 'ERROR', note: lang === 'es' ? 'Se requiere una URL.' : 'A URL is required.' };
+    }
+    const result = await executeBrowserWorkerCommand({
+      sessionId: String(params.sessionId || 'tool_browser'),
+      action: 'open',
+      url,
+      screenshot: params.screenshot !== false,
+    });
+    return {
+      status: result.status,
+      url: result.url,
+      title: result.title,
+      screenshotUrl: result.screenshotUrl,
+      auditHash: result.auditHash,
+      excerpt: (result.text || '').slice(0, 1200),
+      error: result.error,
+    };
+  },
+  browser_extract_text: async (params, lang) => {
+    const result = await executeBrowserWorkerCommand({
+      sessionId: String(params.sessionId || 'tool_browser'),
+      action: 'extract',
+      selector: params.selector ? String(params.selector) : undefined,
+      screenshot: false,
+    });
+    return {
+      status: result.status,
+      url: result.url,
+      text: (result.text || '').slice(0, 4000),
+      auditHash: result.auditHash,
+      note: result.status === 'SUCCESS'
+        ? undefined
+        : (lang === 'es' ? 'No hay página abierta en esta sesión del worker.' : 'No page is open in this worker session.'),
+    };
+  },
+  web_search_live: async (params) => {
+    const query = String(params.query || params.q || '').trim();
+    const search = await searchWeb(query, Math.min(Number(params.limit) || 5, 10));
+    return { status: 'SEARCHED', source: search.source, query: search.query, results: search.results, warning: search.warning };
+  },
 };
 
 export function getToolHandler(toolId: string): ToolHandler {
   const handler = registry[toolId];
   if (!handler) {
-    return () => ({ status: 'TOOL_NOT_FOUND', note: `No handler registered for tool: ${toolId}` });
+    return () => ({ status: 'TOOL_NOT_FOUND', executed: false, note: `No handler registered for tool: ${toolId}` });
   }
-  return handler;
+  return async (params, lang) => {
+    const result = await handler(params, lang);
+    return { ...result, executed: REAL_EXECUTION_TOOLS.has(toolId) };
+  };
+}
+
+export function isRealExecutionTool(toolId: string): boolean {
+  return REAL_EXECUTION_TOOLS.has(toolId);
 }
 
 export function listRegisteredTools(): string[] {

@@ -21,7 +21,13 @@ async function canReachHealth() {
 async function ensureServer() {
   if (await canReachHealth()) return;
   managedServer = spawn(process.execPath, ['dist/server.mjs'], {
-    env: { ...process.env, NODE_ENV: 'production', ALFRED_HOST: process.env.ALFRED_HOST || '127.0.0.1' },
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      ALFRED_HOST: process.env.ALFRED_HOST || '127.0.0.1',
+      // El smoke navega contra el fixture local servido por el propio Alfred.
+      ALFRED_BROWSER_ALLOW_PRIVATE: 'true',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let tail = '';
@@ -59,6 +65,15 @@ async function postJson(path, body) {
   });
   if (!res.ok) throw new Error(`${path} failed with ${res.status}`);
   return res.json();
+}
+
+async function postRaw(path, body) {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json().catch(() => ({})) };
 }
 
 async function main() {
@@ -127,6 +142,12 @@ async function main() {
     screenshot: true,
   });
   if (browserOpen.status !== 'SUCCESS' || !String(browserOpen.url || '').includes('/browser-worker-fixture.html')) throw new Error('Browser Worker open failed');
+  if (!browserOpen.screenshotUrl) throw new Error('Browser Worker did not expose a screenshot URL');
+
+  const artifactRes = await fetch(`${BASE}${browserOpen.screenshotUrl}`);
+  if (!artifactRes.ok) throw new Error(`Browser Worker artifact endpoint failed with ${artifactRes.status}`);
+  const traversal = await fetch(`${BASE}/api/browser-worker/artifact?path=${encodeURIComponent('../../package.json')}`);
+  if (traversal.status !== 404) throw new Error('Artifact endpoint must reject path traversal');
 
   const browserFill = await postJson('/api/browser-worker/command', {
     sessionId: 'smoke_browser_worker',
@@ -171,6 +192,25 @@ async function main() {
     action: 'close',
     allowPrivate: true,
   });
+
+  // ── Modo agente: navegación real desde lenguaje natural ────────────────
+  const noAgentTask = await postRaw('/api/agent-mode/run', { message: 'hola alfred como estas', sessionId: 'smoke_agent_none' });
+  if (noAgentTask.status !== 422) throw new Error('Agent mode must not trigger on plain conversation');
+
+  const agentRun = await postRaw('/api/agent-mode/run', {
+    message: `abre ${BASE}/browser-worker-fixture.html`,
+    sessionId: 'smoke_agent_mode',
+    language: 'es',
+  });
+  const agentBlockedByPolicy = agentRun.status === 502 && /private|localhost|allowlist|Domain not in/i.test(JSON.stringify(agentRun.body));
+  if (!agentBlockedByPolicy) {
+    if (agentRun.status !== 200 || !agentRun.body.ok) throw new Error(`Agent mode run failed: ${JSON.stringify(agentRun.body).slice(0, 300)}`);
+    if (!String(agentRun.body.evidence?.url || '').includes('/browser-worker-fixture.html')) throw new Error('Agent mode did not navigate to the requested URL');
+    if (!agentRun.body.evidence?.auditHash) throw new Error('Agent mode did not produce an audit hash');
+    if (!agentRun.body.toolCallTraces?.length) throw new Error('Agent mode did not record tool traces');
+  } else {
+    console.log('Agent mode navigation skipped: private-network policy active on the running server.');
+  }
 
   const research = await postJson('/api/chat', {
     message: 'investiga RevenueCat últimas noticias oficiales para un SaaS',

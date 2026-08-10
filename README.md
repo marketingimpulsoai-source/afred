@@ -104,6 +104,18 @@ npm run lint     # type-check TypeScript
 npm run smoke    # prueba API básica
 ```
 
+## Modo Agente (abrir ventanas de internet)
+
+Alfred navega de verdad: `abre youtube`, `abre https://…` o `busca en internet …`
+activan el Browser Worker (Playwright/Chromium), que abre la página, extrae el
+texto y devuelve captura + hash de auditoría. Con
+`ALFRED_BROWSER_HEADLESS=false` las ventanas de Chrome se abren visibles en el
+escritorio. Detalle completo en `docs/ALFRED_MODO_AGENTE.md`.
+
+```bash
+npx playwright install chromium   # requerido una vez para el modo agente
+```
+
 ## Arquitectura
 
 Los 4 pilares están en:
@@ -112,6 +124,8 @@ Los 4 pilares están en:
 - `src/alfred_core/router.ts` — Router semántico.
 - `src/alfred_core/memory.ts` — Memoria SQLite persistente.
 - `src/skills/toolRegistry.ts` — Gestor de tools/skills.
+- `src/alfred_core/agentMode.ts` — Modo agente: navegación real con evidencia.
+- `src/alfred_core/browserWorker.ts` — Browser Worker con política y auditoría.
 
 Documentación extensa:
 
@@ -129,6 +143,8 @@ Documentación extensa:
 - `docs/OPERATIONAL_BRIEFING_V3.md`
 - `docs/WINDOWS_RUN_COMMANDS.md`
 - `docs/ALFRED_MEMORY_PREFERENCES.md`
+- `docs/ALFRED_MODO_AGENTE.md`
+- `docs/AUDITORIA_ALFRED_2026.md`
 
 ## Verificación realizada
 

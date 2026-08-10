@@ -17,6 +17,7 @@ import { buildCryptoMarketAnswer, isCryptoMarketRequest } from './marketData';
 import { buildWebResearchPlan, requiresExternalResearch } from './webResearch';
 import { buildGitHubAnalysisPlan } from './github';
 import { buildPerplexityResearchPlan } from './perplexity';
+import { detectAgentBrowserTask, runAgentBrowserTask } from './agentMode';
 
 function estimateTokens(text: string): number {
   // Aproximación simple: ~4 caracteres por token (heurística estándar)
@@ -182,12 +183,12 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
       const responseText = enforcePersonalityRules(marketAnswer.text, language);
       const routingDecision = {
         query: message,
-        chosenAgentId: 'webb',
+        chosenAgentId: 'webb_infra',
         chosenAgentName: 'Webb',
         confidence: 98,
         reasoningES: 'Solicitud de mercado/crypto detectada; Alfred verificó precio en fuentes reales antes de responder.',
         reasoningEN: 'Market/crypto request detected; Alfred verified live sources before answering.',
-        candidates: [{ agentId: 'webb', score: 98, reason: 'live_market_data' }],
+        candidates: [{ agentId: 'webb_infra', score: 98, reason: 'live_market_data' }],
         latencyMs,
         method: 'direct' as const,
       };
@@ -199,7 +200,7 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
         timestamp: nowIso,
         createdAt: Date.now(),
         query: message,
-        assignedAgentId: 'webb',
+        assignedAgentId: 'webb_infra',
         assignedAgentName: 'Webb — Live Market Verification',
         latencyMs,
         tokensUsed: estimateTokens(message + responseText),
@@ -231,6 +232,70 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
         uiActions: marketAnswer.uiActions,
       };
     }
+  }
+
+  // ── 0.7. Modo agente: navegación real con evidencia ────────────────────
+  const browserTask = detectAgentBrowserTask(message);
+  if (browserTask) {
+    const run = await runAgentBrowserTask(browserTask, sessionId, language);
+    const responseId = 'msg_' + Date.now();
+    const nowIso = new Date().toLocaleTimeString();
+    const latencyMs = Date.now() - startTime;
+    const responseText = enforcePersonalityRules(run.text, language);
+    const confidence = run.ok ? 97 : 60;
+    const routingDecision = {
+      query: message,
+      chosenAgentId: 'webb_infra',
+      chosenAgentName: 'Webb',
+      confidence,
+      reasoningES: `Modo agente detectado (${browserTask.intent}); Alfred controló un navegador real y adjuntó evidencia verificable.`,
+      reasoningEN: `Agent mode detected (${browserTask.intent}); Alfred drove a real browser and attached verifiable evidence.`,
+      candidates: [{ agentId: 'webb_infra', score: confidence, reason: 'browser_worker_agent_mode' }],
+      latencyMs,
+      method: 'direct' as const,
+    };
+
+    saveMessage({ id: 'usr_' + Date.now(), sessionId, sender: 'user', text: message, timestamp: nowIso, createdAt: startTime, language });
+    saveMessage({ id: responseId, sessionId, sender: 'subagent', agentId: 'webb_infra', agentName: 'Webb', text: responseText, timestamp: nowIso, createdAt: Date.now(), language, routingDecision, toolCalls: run.toolCallTraces, confidenceScore: confidence });
+    saveTelemetry({
+      id: 'log_' + Date.now(),
+      timestamp: nowIso,
+      createdAt: Date.now(),
+      query: message,
+      assignedAgentId: 'webb_infra',
+      assignedAgentName: 'Webb — Agent Mode Browser',
+      latencyMs,
+      tokensUsed: estimateTokens(message + responseText),
+      confidence,
+      status: run.ok ? 'SUCCESS' : 'ERROR',
+      policyCheck: 'POL-BROWSER-01: navegación con allowlist, sin submit/download sin confirmación explícita',
+      toolsInvokedCount: run.toolCallTraces.length,
+      costEstimateUsd: 0,
+    });
+    saveAgentWork({
+      id: `work_${responseId}`,
+      createdAt: Date.now(),
+      query: message,
+      assignedAgentId: 'webb_infra',
+      assignedAgentName: 'Webb',
+      status: run.ok ? 'SUCCESS' : 'ERROR',
+      latencyMs,
+      toolsInvokedCount: run.toolCallTraces.length,
+      summary: `${browserTask.label} · ${run.evidence.url || browserTask.url} · ${run.evidence.extractedChars} chars`,
+    });
+
+    return {
+      id: responseId,
+      text: responseText,
+      assignedAgent: getAgentById('webb_infra') || null,
+      routingDecision,
+      toolCallTraces: run.toolCallTraces,
+      confidenceScore: confidence,
+      latencyMs,
+      language,
+      memoryContextUsed: [],
+      uiActions: run.uiActions,
+    };
   }
 
   // ── 1. Recuperación de memoria semántica relevante (Minerva) ──────────
@@ -270,7 +335,7 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
     const confidence = result.source === 'agent' ? 98 : 92;
     const routingDecision = {
       query: message,
-      chosenAgentId: 'webb',
+      chosenAgentId: 'webb_infra',
       chosenAgentName: 'Webb',
       confidence,
       reasoningES: result.source === 'agent'
@@ -279,18 +344,18 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
       reasoningEN: result.source === 'agent'
         ? 'Perplexity Agent API produced a web-grounded answer with verified sources.'
         : 'Perplexity Search API produced raw results and Alfred converted them into a verifiable summary.',
-      candidates: [{ agentId: 'webb', score: confidence, reason: result.source === 'agent' ? 'perplexity_agent_api' : 'perplexity_search_api' }],
+      candidates: [{ agentId: 'webb_infra', score: confidence, reason: result.source === 'agent' ? 'perplexity_agent_api' : 'perplexity_search_api' }],
       latencyMs,
       method: 'direct' as const,
     };
     saveMessage({ id: 'usr_' + Date.now(), sessionId, sender: 'user', text: message, timestamp: nowIso, createdAt: startTime, language });
-    saveMessage({ id: responseId, sessionId, sender: 'subagent', agentId: 'webb', agentName: 'Webb', text: responseText, timestamp: nowIso, createdAt: Date.now(), language, routingDecision, confidenceScore: confidence });
+    saveMessage({ id: responseId, sessionId, sender: 'subagent', agentId: 'webb_infra', agentName: 'Webb', text: responseText, timestamp: nowIso, createdAt: Date.now(), language, routingDecision, confidenceScore: confidence });
     saveTelemetry({
       id: 'log_' + Date.now(),
       timestamp: nowIso,
       createdAt: Date.now(),
       query: message,
-      assignedAgentId: 'webb',
+      assignedAgentId: 'webb_infra',
       assignedAgentName: result.source === 'agent' ? 'Webb — Perplexity Agent Research' : 'Webb — Perplexity Search Research',
       latencyMs,
       tokensUsed: estimateTokens(message + responseText),
@@ -303,7 +368,7 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
     return {
       id: responseId,
       text: responseText,
-      assignedAgent: getAgentById('webb') || null,
+      assignedAgent: getAgentById('webb_infra') || null,
       routingDecision,
       toolCallTraces: [],
       confidenceScore: confidence,
@@ -356,25 +421,25 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
     const responseText = enforcePersonalityRules(githubAnalysisPlan.textPrefix + summary, language);
     const routingDecision = {
       query: message,
-      chosenAgentId: 'webb',
+      chosenAgentId: 'webb_infra',
       chosenAgentName: 'Webb',
       confidence: 96,
       reasoningES: 'El mensaje contiene un repositorio GitHub; Alfred realizó análisis público del repositorio antes de responder.',
       reasoningEN: 'The message contains a GitHub repository; Alfred performed a public repository analysis before answering.',
-      candidates: [{ agentId: 'webb', score: 96, reason: 'github_repository_analysis' }],
+      candidates: [{ agentId: 'webb_infra', score: 96, reason: 'github_repository_analysis' }],
       latencyMs: Date.now() - startTime,
       method: 'direct' as const,
     };
     const latencyMs = Date.now() - startTime;
     const tokensUsed = estimateTokens(message + responseText);
     saveMessage({ id: 'usr_' + Date.now(), sessionId, sender: 'user', text: message, timestamp: nowIso, createdAt: startTime, language });
-    saveMessage({ id: responseId, sessionId, sender: 'subagent', agentId: 'webb', agentName: 'Webb', text: responseText, timestamp: nowIso, createdAt: Date.now(), language, routingDecision, confidenceScore: 96 });
+    saveMessage({ id: responseId, sessionId, sender: 'subagent', agentId: 'webb_infra', agentName: 'Webb', text: responseText, timestamp: nowIso, createdAt: Date.now(), language, routingDecision, confidenceScore: 96 });
     saveTelemetry({
       id: 'log_' + Date.now(),
       timestamp: nowIso,
       createdAt: Date.now(),
       query: message,
-      assignedAgentId: 'webb',
+      assignedAgentId: 'webb_infra',
       assignedAgentName: 'Webb — GitHub Repository Analysis',
       latencyMs,
       tokensUsed,
@@ -387,7 +452,7 @@ export async function processUserRequest(req: ChatRequest): Promise<ChatResponse
     return {
       id: responseId,
       text: responseText,
-      assignedAgent: getAgentById('webb') || null,
+      assignedAgent: getAgentById('webb_infra') || null,
       routingDecision,
       toolCallTraces: [],
       confidenceScore: 96,

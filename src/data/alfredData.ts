@@ -143,8 +143,8 @@ export const SUB_AGENTS: SubAgent[] = [
     descriptionEN: 'Manages infrastructure as code (Terraform/CloudFormation), deploys to AWS/GCP/Azure, orchestrates CI/CD, and Docker/Kubernetes containers.',
     systemPromptES: 'Eres Webb, el Especialista en Infraestructura de Alfred. Escribes IaC con Terraform/CloudFormation, despliegas en la nube, configuras pipelines CI/CD y orquestas contenedores para producción confiable y escalable.',
     systemPromptEN: "You are Webb, Alfred's Infrastructure Specialist. You write IaC with Terraform/CloudFormation, deploy to the cloud, configure CI/CD pipelines, and orchestrate containers for reliable, scalable production.",
-    tools: ['terraform_plan', 'deploy_cloud', 'docker_build', 'k8s_manage'],
-    keywords: ['infraestructura', 'infrastructure', 'terraform', 'aws', 'gcp', 'azure', 'docker', 'kubernetes', 'ci/cd', 'despliegue', 'deploy'],
+    tools: ['terraform_plan', 'deploy_cloud', 'docker_build', 'k8s_manage', 'browser_open_url', 'browser_extract_text', 'web_search_live'],
+    keywords: ['infraestructura', 'infrastructure', 'terraform', 'aws', 'gcp', 'azure', 'docker', 'kubernetes', 'ci/cd', 'despliegue', 'deploy', 'navegador', 'browser', 'modo agente', 'agent mode', 'abrir web'],
     sampleQueriesES: ['Genera el Terraform para desplegar en AWS', 'Configura un pipeline de CI/CD', 'Crea el Dockerfile de este servicio'],
     sampleQueriesEN: ['Generate Terraform to deploy on AWS', 'Set up a CI/CD pipeline', 'Create the Dockerfile for this service'],
     delegatesTo: ['thomas_architect', 'fortress_security']
@@ -346,6 +346,9 @@ export const AGENT_TOOLS: Omit<AgentTool, 'handler'>[] = [
   { id: 'context_summarize', agentId: 'minerva_memory', nameES: 'Resumir Contexto', nameEN: 'Summarize Context', descriptionES: 'Resume el contexto histórico relevante.', descriptionEN: 'Summarizes relevant historical context.', riskLevel: 'LOW', parametersSchema: {} },
   { id: 'detect_language', agentId: 'hugo_multilingual', nameES: 'Detectar Idioma', nameEN: 'Detect Language', descriptionES: 'Detecta el idioma del texto de entrada.', descriptionEN: 'Detects the input text language.', riskLevel: 'LOW', parametersSchema: { text: { type: 'string', description: 'Texto', required: true } } },
   { id: 'translate_preserve_tone', agentId: 'hugo_multilingual', nameES: 'Traducir Preservando Tono', nameEN: 'Translate Preserving Tone', descriptionES: 'Traduce preservando matiz cultural y tono.', descriptionEN: 'Translates while preserving cultural nuance and tone.', riskLevel: 'LOW', parametersSchema: { text: { type: 'string', description: 'Texto a traducir', required: true } } },
+  { id: 'browser_open_url', agentId: 'webb_infra', nameES: 'Abrir URL en Navegador Real', nameEN: 'Open URL in Real Browser', descriptionES: 'Abre una URL con el Browser Worker y devuelve título, texto y captura como evidencia.', descriptionEN: 'Opens a URL with the Browser Worker and returns title, text, and a screenshot as evidence.', riskLevel: 'MEDIUM', parametersSchema: { url: { type: 'string', description: 'URL http/https a abrir', required: true } } },
+  { id: 'browser_extract_text', agentId: 'webb_infra', nameES: 'Extraer Texto de la Página', nameEN: 'Extract Page Text', descriptionES: 'Extrae el texto visible de la página abierta en la sesión del worker.', descriptionEN: 'Extracts visible text from the page open in the worker session.', riskLevel: 'LOW', parametersSchema: { selector: { type: 'string', description: 'Selector CSS opcional' } } },
+  { id: 'web_search_live', agentId: 'webb_infra', nameES: 'Búsqueda Web en Vivo', nameEN: 'Live Web Search', descriptionES: 'Ejecuta una búsqueda real y devuelve títulos, URLs y extractos verificables.', descriptionEN: 'Runs a real search and returns verifiable titles, URLs, and snippets.', riskLevel: 'LOW', parametersSchema: { query: { type: 'string', description: 'Consulta a buscar', required: true } } },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════

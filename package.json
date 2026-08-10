@@ -11,6 +11,7 @@
     "clean": "rm -rf dist server.mjs data/alfred.db",
     "lint": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
+    "audit:pdf": "node scripts/generate-audit-pdf.mjs",
     "test": "npm run smoke"
   },
   "dependencies": {

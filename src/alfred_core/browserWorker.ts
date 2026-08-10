@@ -24,7 +24,10 @@ export interface BrowserWorkerStatus {
   available: boolean;
   ready: boolean;
   browserExecutable?: string;
+  headless: boolean;
   sessionCount: number;
+  maxSessions: number;
+  sessionIdleTimeoutMs: number;
   sessions: Array<{ sessionId: string; currentUrl?: string; title?: string; lastUsedAt: string }>;
   allowPrivateDefault: boolean;
   allowedDomains: string[];
@@ -40,6 +43,7 @@ export interface BrowserWorkerResult {
   text?: string;
   html?: string;
   screenshotPath?: string;
+  screenshotUrl?: string;
   downloadPath?: string;
   auditHash: string;
   timestamp: string;
@@ -57,12 +61,26 @@ interface SessionState {
 
 const ARTIFACT_ROOT = path.join(process.cwd(), 'data', 'browser-worker');
 const DEFAULT_TIMEOUT = 15000;
+const SESSION_IDLE_TIMEOUT_MS = Math.max(Number(process.env.ALFRED_BROWSER_SESSION_TTL_MS) || 10 * 60 * 1000, 30_000);
+const MAX_SESSIONS = Math.min(Math.max(Number(process.env.ALFRED_BROWSER_MAX_SESSIONS) || 6, 1), 32);
+const SWEEP_INTERVAL_MS = 60_000;
 const sessions = new Map<string, SessionState>();
 let browserPromise: Promise<Browser> | null = null;
 let resolvedBrowserExecutable: string | undefined;
+let sweepTimer: NodeJS.Timeout | null = null;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function isHeadless(): boolean {
+  // Modo agente visible: ALFRED_BROWSER_HEADLESS=false abre ventanas reales
+  // de Chrome en el escritorio del Jefe Maestro.
+  return process.env.ALFRED_BROWSER_HEADLESS !== 'false';
+}
+
+function allowPrivateDefault(): boolean {
+  return process.env.ALFRED_BROWSER_ALLOW_PRIVATE === 'true';
 }
 
 function normalizeHost(hostname: string): string {
@@ -134,29 +152,74 @@ function detectChromeExecutable(): string | undefined {
 
 async function launchBrowser(): Promise<Browser> {
   resolvedBrowserExecutable = detectChromeExecutable();
+  const headless = isHeadless();
   try {
     return resolvedBrowserExecutable
-      ? await chromium.launch({ headless: true, executablePath: resolvedBrowserExecutable, args: ['--disable-dev-shm-usage'] })
-      : await chromium.launch({ headless: true, args: ['--disable-dev-shm-usage'] });
+      ? await chromium.launch({ headless, executablePath: resolvedBrowserExecutable, args: ['--disable-dev-shm-usage'] })
+      : await chromium.launch({ headless, args: ['--disable-dev-shm-usage'] });
   } catch (error) {
     if (resolvedBrowserExecutable) {
       console.warn(`[BrowserWorker] Failed launching system Chrome at ${resolvedBrowserExecutable}; falling back to bundled Chromium.`, error);
       resolvedBrowserExecutable = undefined;
-      return chromium.launch({ headless: true, args: ['--disable-dev-shm-usage'] });
+      return chromium.launch({ headless, args: ['--disable-dev-shm-usage'] });
     }
     throw error;
   }
 }
 
 async function getBrowser(): Promise<Browser> {
-  if (!browserPromise) browserPromise = launchBrowser();
+  if (!browserPromise) {
+    browserPromise = launchBrowser().catch(error => {
+      browserPromise = null;
+      throw error;
+    });
+  }
   return browserPromise;
 }
 
+/** Cierra las sesiones inactivas para no acumular contextos de Chromium. */
+async function sweepIdleSessions(): Promise<void> {
+  const cutoff = Date.now() - SESSION_IDLE_TIMEOUT_MS;
+  const expired = [...sessions.entries()].filter(([, state]) => state.lastUsedAt < cutoff).map(([id]) => id);
+  await Promise.all(expired.map(id => closeSession(id)));
+}
+
+function ensureSweeper(): void {
+  if (sweepTimer) return;
+  sweepTimer = setInterval(() => {
+    void sweepIdleSessions();
+  }, SWEEP_INTERVAL_MS);
+  sweepTimer.unref?.();
+}
+
+function safeSessionDirName(sessionId: string): string {
+  return sessionId.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'default';
+}
+
 async function ensureArtifactDir(sessionId: string): Promise<string> {
-  const dir = path.join(ARTIFACT_ROOT, sessionId);
+  const dir = path.join(ARTIFACT_ROOT, safeSessionDirName(sessionId));
   await mkdir(dir, { recursive: true });
   return dir;
+}
+
+/**
+ * Resuelve una ruta de artefacto verificando que quede dentro de
+ * `data/browser-worker`. Evita path traversal al servirlos por HTTP.
+ */
+export function resolveArtifactPath(candidate: string): string | null {
+  if (!candidate) return null;
+  const absolute = path.resolve(ARTIFACT_ROOT, candidate);
+  const root = path.resolve(ARTIFACT_ROOT);
+  const relative = path.relative(root, absolute);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return null;
+  return existsSync(absolute) ? absolute : null;
+}
+
+export function artifactUrl(absolutePath?: string): string | undefined {
+  if (!absolutePath) return undefined;
+  const relative = path.relative(path.resolve(ARTIFACT_ROOT), path.resolve(absolutePath));
+  if (!relative || relative.startsWith('..')) return undefined;
+  return `/api/browser-worker/artifact?path=${encodeURIComponent(relative.split(path.sep).join('/'))}`;
 }
 
 async function captureEvidence(sessionId: string, action: BrowserWorkerAction, page: Page, includeScreenshot = true): Promise<{ screenshotPath?: string; title: string; url: string; text: string; html: string }> {
@@ -187,11 +250,19 @@ function hashAudit(input: Record<string, unknown>): string {
   return crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
 }
 
-async function getSession(sessionId: string, allowPrivate = false): Promise<SessionState> {
+async function getSession(sessionId: string): Promise<SessionState> {
+  ensureSweeper();
   const existing = sessions.get(sessionId);
   if (existing) {
     existing.lastUsedAt = Date.now();
     return existing;
+  }
+
+  await sweepIdleSessions();
+  while (sessions.size >= MAX_SESSIONS) {
+    const oldest = [...sessions.entries()].sort((a, b) => a[1].lastUsedAt - b[1].lastUsedAt)[0];
+    if (!oldest) break;
+    await closeSession(oldest[0]);
   }
 
   const browser = await getBrowser();
@@ -256,7 +327,7 @@ function invalidResult(action: BrowserWorkerAction, sessionId: string, reason: s
 async function interact(action: BrowserWorkerAction, command: BrowserWorkerCommand): Promise<BrowserWorkerResult> {
   const sessionId = command.sessionId || 'default';
   const timeout = Math.min(Math.max(Number(command.timeoutMs) || DEFAULT_TIMEOUT, 1000), 30000);
-  const allowPrivate = command.allowPrivate === true;
+  const allowPrivate = command.allowPrivate === true || allowPrivateDefault();
 
   try {
     if (action === 'close') {
@@ -272,7 +343,7 @@ async function interact(action: BrowserWorkerAction, command: BrowserWorkerComma
       };
     }
 
-    const session = await getSession(sessionId, allowPrivate);
+    const session = await getSession(sessionId);
     const page = session.page;
 
     if (action === 'open') {
@@ -295,6 +366,7 @@ async function interact(action: BrowserWorkerAction, command: BrowserWorkerComma
         text: evidence.text,
         html: evidence.html,
         screenshotPath: evidence.screenshotPath,
+        screenshotUrl: artifactUrl(evidence.screenshotPath),
         auditHash: hashAudit({ action, sessionId, url: evidence.url, title: evidence.title, text: evidence.text.slice(0, 400), at: nowIso() }),
         timestamp: nowIso(),
         message: `Opened ${targetUrl}`,
@@ -319,6 +391,7 @@ async function interact(action: BrowserWorkerAction, command: BrowserWorkerComma
         text: evidence.text,
         html: evidence.html,
         screenshotPath: evidence.screenshotPath,
+        screenshotUrl: artifactUrl(evidence.screenshotPath),
         auditHash: hashAudit({ action, sessionId, selector: command.selector, value: command.value, url: evidence.url, at: nowIso() }),
         timestamp: nowIso(),
         message: `Filled ${command.selector}`,
@@ -343,6 +416,7 @@ async function interact(action: BrowserWorkerAction, command: BrowserWorkerComma
         text: evidence.text,
         html: evidence.html,
         screenshotPath: evidence.screenshotPath,
+        screenshotUrl: artifactUrl(evidence.screenshotPath),
         auditHash: hashAudit({ action, sessionId, selector: command.selector, url: evidence.url, at: nowIso() }),
         timestamp: nowIso(),
         message: `Clicked ${command.selector}`,
@@ -368,6 +442,7 @@ async function interact(action: BrowserWorkerAction, command: BrowserWorkerComma
         text: evidence.text,
         html: evidence.html,
         screenshotPath: evidence.screenshotPath,
+        screenshotUrl: artifactUrl(evidence.screenshotPath),
         auditHash: hashAudit({ action, sessionId, selector: command.selector, confirmed: command.confirm, url: evidence.url, at: nowIso() }),
         timestamp: nowIso(),
         message: `Submitted ${command.selector}`,
@@ -394,6 +469,7 @@ async function interact(action: BrowserWorkerAction, command: BrowserWorkerComma
         text: (text || evidence.text).slice(0, 6000),
         html: evidence.html,
         screenshotPath: evidence.screenshotPath,
+        screenshotUrl: artifactUrl(evidence.screenshotPath),
         auditHash: hashAudit({ action, sessionId, selector: command.selector, url: evidence.url, at: nowIso() }),
         timestamp: nowIso(),
         message: `Extracted ${command.selector || 'page text'}`,
@@ -424,6 +500,7 @@ async function interact(action: BrowserWorkerAction, command: BrowserWorkerComma
         text: evidence.text,
         html: evidence.html,
         screenshotPath: evidence.screenshotPath,
+        screenshotUrl: artifactUrl(evidence.screenshotPath),
         downloadPath: targetPath,
         auditHash: hashAudit({ action, sessionId, selector: command.selector, confirmed: command.confirm, url: evidence.url, downloadPath: targetPath, at: nowIso() }),
         timestamp: nowIso(),
@@ -465,14 +542,17 @@ export async function getBrowserWorkerStatus(): Promise<BrowserWorkerStatus> {
     available: true,
     ready: true,
     browserExecutable: resolvedBrowserExecutable,
+    headless: isHeadless(),
     sessionCount: sessions.size,
+    maxSessions: MAX_SESSIONS,
+    sessionIdleTimeoutMs: SESSION_IDLE_TIMEOUT_MS,
     sessions: await Promise.all([...sessions.entries()].map(async ([sessionId, state]) => ({
       sessionId,
       currentUrl: state.currentUrl || state.page.url(),
       title: state.title || await state.page.title().catch(() => ''),
       lastUsedAt: new Date(state.lastUsedAt).toISOString(),
     }))),
-    allowPrivateDefault: process.env.ALFRED_BROWSER_ALLOW_PRIVATE === 'true',
+    allowPrivateDefault: allowPrivateDefault(),
     allowedDomains: allowedDomainsFromEnv(),
   };
 }
@@ -480,6 +560,19 @@ export async function getBrowserWorkerStatus(): Promise<BrowserWorkerStatus> {
 export async function closeAllBrowserSessions(): Promise<void> {
   const ids = [...sessions.keys()];
   await Promise.all(ids.map(id => closeSession(id)));
+}
+
+/** Libera Chromium y el temporizador de limpieza al apagar el servidor. */
+export async function shutdownBrowserWorker(): Promise<void> {
+  if (sweepTimer) {
+    clearInterval(sweepTimer);
+    sweepTimer = null;
+  }
+  await closeAllBrowserSessions();
+  const pending = browserPromise;
+  browserPromise = null;
+  if (!pending) return;
+  await pending.then(browser => browser.close()).catch(() => undefined);
 }
 
 export async function ensureBrowserFixtureReady(): Promise<void> {

@@ -23,7 +23,9 @@ import { getAlfredV3ApiStatus } from './src/integrations/alfredV3Apis';
 import { getOperationalBriefing } from './src/integrations/operationalBriefing';
 import { buildCryptoMarketAnswer } from './src/alfred_core/marketData';
 import { researchWithPerplexity, renderPerplexityResearchHtml } from './src/alfred_core/perplexity';
-import { executeBrowserWorkerCommand, getBrowserWorkerStatus } from './src/alfred_core/browserWorker';
+import { executeBrowserWorkerCommand, getBrowserWorkerStatus, resolveArtifactPath, shutdownBrowserWorker } from './src/alfred_core/browserWorker';
+import { detectAgentBrowserTask, runAgentBrowserTask } from './src/alfred_core/agentMode';
+import { searchWeb } from './src/alfred_core/webSearch';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +34,47 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 
 const PORT = Number(process.env.PORT) || 3000;
+// Alfred es un asistente local: por defecto solo escucha en loopback.
+// Exponerlo a la red requiere fijar ALFRED_HOST explícitamente.
+const HOST = process.env.ALFRED_HOST || '127.0.0.1';
+
+// ── Cabeceras defensivas ────────────────────────────────────────────────
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), payment=()');
+  next();
+});
+
+// ── Límite de tasa en memoria para endpoints costosos ───────────────────
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = Math.max(Number(process.env.ALFRED_RATE_LIMIT_PER_MINUTE) || 60, 5);
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const key = `${req.ip}:${req.path}`;
+  const now = Date.now();
+  const bucket = rateBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return next();
+  }
+  bucket.count += 1;
+  if (bucket.count > RATE_LIMIT_MAX) {
+    res.setHeader('Retry-After', Math.ceil((bucket.resetAt - now) / 1000));
+    return res.status(429).json({ error: 'Rate limit exceeded', retryAfterMs: bucket.resetAt - now });
+  }
+  return next();
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets) {
+    if (bucket.resetAt <= now) rateBuckets.delete(key);
+  }
+}, RATE_LIMIT_WINDOW_MS).unref?.();
 
 // ── Health & System Status ─────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
@@ -97,7 +140,31 @@ app.get('/api/browser-worker/status', async (_req, res) => {
   }
 });
 
-app.post('/api/browser-worker/command', async (req, res) => {
+app.get('/api/browser-worker/artifact', (req, res) => {
+  const requested = typeof req.query.path === 'string' ? req.query.path : '';
+  const resolved = resolveArtifactPath(requested);
+  if (!resolved) return res.status(404).json({ error: 'Artifact not found' });
+  res.sendFile(resolved);
+});
+
+app.post('/api/agent-mode/run', rateLimit, async (req, res) => {
+  const { message = '', sessionId = 'default', language = 'es' } = req.body || {};
+  if (typeof message !== 'string' || !message.trim()) {
+    return res.status(400).json({ error: 'message is required' });
+  }
+  const task = detectAgentBrowserTask(message);
+  if (!task) {
+    return res.status(422).json({ error: 'No browser task detected in message', detected: false });
+  }
+  try {
+    const run = await runAgentBrowserTask(task, String(sessionId), language === 'en' ? 'en' : 'es');
+    res.status(run.ok ? 200 : 502).json(run);
+  } catch (error: any) {
+    res.status(500).json({ error: String(error?.message || error) });
+  }
+});
+
+app.post('/api/browser-worker/command', rateLimit, async (req, res) => {
   try {
     const result = await executeBrowserWorkerCommand(req.body || {});
     const statusCode = result.status === 'SUCCESS' ? 200 : result.status === 'REQUIRES_CONFIRMATION' ? 409 : result.status === 'BLOCKED' ? 403 : 500;
@@ -133,35 +200,10 @@ app.get('/api/perplexity/research', async (req, res) => {
   res.type('html').send(renderPerplexityResearchHtml(result, language));
 });
 
-app.get('/api/web-core/search', async (req, res) => {
+app.get('/api/web-core/search', rateLimit, async (req, res) => {
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   if (!q) return res.status(400).json({ error: 'query required' });
-  const fallback = [
-    { title: `DuckDuckGo: ${q}`, url: `https://duckduckgo.com/?q=${encodeURIComponent(q)}`, snippet: 'Abrir búsqueda externa solo si el Jefe Maestro lo indica.' },
-    { title: `Bing: ${q}`, url: `https://www.bing.com/search?q=${encodeURIComponent(q)}`, snippet: 'Fuente alternativa para contrastar resultados.' },
-    { title: `Google: ${q}`, url: `https://www.google.com/search?q=${encodeURIComponent(q)}`, snippet: 'Fuente alternativa; puede bloquear iframe.' },
-  ];
-  try {
-    const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
-    const html = await fetch(ddgUrl, { headers: { 'user-agent': 'Mozilla/5.0 ALFRED-WebCore/1.0' } }).then(r => r.text());
-    const results = [...html.matchAll(/<a rel="nofollow" class="result__a" href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g)]
-      .slice(0, 8)
-      .map(match => {
-        const rawUrl = match[1].replace(/&amp;/g, '&');
-        let url = rawUrl;
-        try {
-          const parsed = new URL(rawUrl, 'https://duckduckgo.com');
-          const uddg = parsed.searchParams.get('uddg');
-          if (uddg) url = decodeURIComponent(uddg);
-        } catch {}
-        const clean = (value: string) => value.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
-        return { title: clean(match[2]), url, snippet: clean(match[3]) };
-      })
-      .filter(item => item.title && item.url);
-    res.json({ query: q, source: results.length ? 'duckduckgo-html' : 'fallback', results: results.length ? results : fallback });
-  } catch (err: any) {
-    res.json({ query: q, source: 'fallback', warning: String(err?.message || err), results: fallback });
-  }
+  res.json(await searchWeb(q, 8));
 });
 
 app.get('/api/integrations/revenuecat', (req, res) => {
@@ -242,10 +284,17 @@ app.get('/api/attachments', (req, res) => {
   res.json({ attachments: listAttachments(sessionId, limit) });
 });
 
+const ATTACHMENTS_ROOT = path.resolve(process.cwd(), 'data', 'attachments');
+
 app.get('/api/attachments/:id', (req, res) => {
   const attachment = getAttachmentById(req.params.id);
   if (!attachment) return res.status(404).json({ error: 'Attachment not found' });
-  res.download(attachment.storagePath, attachment.name);
+  const absolute = path.resolve(attachment.storagePath);
+  const relative = path.relative(ATTACHMENTS_ROOT, absolute);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    return res.status(403).json({ error: 'Attachment path outside the storage directory' });
+  }
+  res.download(absolute, attachment.name);
 });
 
 app.post('/api/attachments', (req, res) => {
@@ -360,7 +409,7 @@ app.post('/api/local-message', (req, res) => {
 });
 
 // ── Chat principal — Orquestación real ──────────────────────────────────
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', rateLimit, async (req, res) => {
   const { message, language = 'es', securityLevel = 'BALANCED', sessionId = 'default', history = [] } = req.body;
 
   if (!message || typeof message !== 'string') {
@@ -391,7 +440,7 @@ app.get('/api/voice/voices', async (_req, res) => {
 });
 
 // ── Text-to-Speech — voz masculina bilingüe ─────────────────────────────
-app.post('/api/tts', async (req, res) => {
+app.post('/api/tts', rateLimit, async (req, res) => {
   const { text, language = 'es' } = req.body;
   if (!text) return res.status(400).json({ error: 'Text required' });
 
@@ -437,12 +486,24 @@ async function startServer() {
     process.exit(1);
   });
 
-  server.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, HOST, () => {
     const llm = getLLMProvider();
-    console.log(`\n[ALFRED CORE] En línea en http://0.0.0.0:${PORT}`);
+    console.log(`\n[ALFRED CORE] En línea en http://${HOST}:${PORT}`);
     console.log(`[ALFRED CORE] Motor LLM: ${llm.name()} (${llm.modelName()}) — Disponible: ${llm.isAvailable()}`);
     console.log(`[ALFRED CORE] 12 sub-agentes cargados: ${SUB_AGENTS.map(a => a.nameES).join(', ')}\n`);
   });
+
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[ALFRED CORE] ${signal} recibido; cerrando navegador y servidor.`);
+    await shutdownBrowserWorker().catch(() => undefined);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 5000).unref();
+  };
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
 startServer();
