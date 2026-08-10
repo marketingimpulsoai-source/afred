@@ -409,13 +409,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
       localStorage.setItem(AUTO_HANDS_FREE_KEY, 'true');
       setPermissionState('granted');
       setMicDiagnostic(null);
-      handsFreeRef.current = true;
-      setHandsFree(true);
-      const started = await startRecognition(true, true);
-      if (!started) {
-        handsFreeRef.current = false;
-        setHandsFree(false);
-      }
+      onCoreStateChange('LISTENING');
       return true;
     } catch (error: any) {
       const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
@@ -602,8 +596,12 @@ export const AlfredCoreHUD: React.FC<Props> = ({
     const ok = skipPermissionCheck || permissionState === 'granted' || await requestMicAccess();
     if (!ok || recognitionStartingRef.current) return false;
 
-    recognitionRef.current?.stop?.();
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop?.(); } catch {}
+      recognitionRef.current = null;
+    }
     const recognition = new SpeechRecognition();
+
     recognition.lang = language === 'es' ? 'es-ES' : 'en-US';
     recognition.interimResults = true;
     recognition.continuous = continuous;
@@ -717,6 +715,7 @@ export const AlfredCoreHUD: React.FC<Props> = ({
       localStorage.setItem(AUTO_HANDS_FREE_KEY, 'false');
       setHandsFree(false);
       recognitionRef.current?.stop?.();
+      recognitionRef.current = null;
       setIsListening(false);
       routineActivationSentRef.current = false;
       return;
